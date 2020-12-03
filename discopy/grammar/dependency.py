@@ -9,14 +9,15 @@ the task, see https://spacy.io/usage/models
 In short, download the language model you would like::
     python -m spacy download en_core_web_sm
 
-Then load it within python as follows
->>> nlp = spacy.load("en_core_web_sm")
->>> doc = nlp("The quick brown fox jumped over the lazy dog.")
+Then load it within python as follows::
+    nlp = spacy.load("en_core_web_sm")
+    doc = nlp("The quick brown fox jumped over the lazy dog.")
 
-::
+or::
     python -m spacy download fr_core_news_sm
->>> nlp = spacy.load("en_core_web_sm")
->>> doc = nlp("Le renard brun et agile a sauté par dessus le chien parasseux.")
+::
+    nlp = spacy.load("en_core_web_sm")
+    doc = nlp("Le renard brun et agile a sauté par dessus le chien parasseux.")
 """
 
 import functools
