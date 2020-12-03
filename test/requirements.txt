@@ -2,3 +2,4 @@ pytket
 pyzx
 sympy
 tensornetwork
+spacy
