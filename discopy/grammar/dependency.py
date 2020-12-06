@@ -24,9 +24,64 @@ import functools
 
 import spacy
 
-from discopy import Ty, Word
+from discopy import Box, Ty, Word
 from discopy.grammar import eager_parse
 
+
+def build_dependency_diagram(token):
+    """
+    Given a spaCy token, recursively builds a dependency diagram from its
+    dependent subtree. This can be applied to the 'ROOT' token of a spaCy
+    span object to create a dependency diagram for an entire 'semantic chunk'.
+
+    The objects of the diagram are tuples (part-of-speech, dependency) where
+    dependency it the dependency of the token on its parent in the dependency
+    tree ('ROOT' if the token is the head of the tree).
+
+    example::
+        sentences = [s for s in doc.sents]
+        R = sentences[0].root
+        build_dependency_diagram(R).draw(figsize=(12,10))
+    """
+    
+    # codomain is the token.dep_
+    cod = Ty((token.pos_, token.dep_))
+    
+    # base case
+    if token.n_lefts + token.n_rights == 0:
+        return Box(token.text, Ty(), cod)
+    
+    else:
+        # codomain starts as empty type
+        dom = Ty()
+        
+        subdiagram = None
+        for child in token.children:
+            # build domain from dependent children
+            dom = dom @ Ty((child.pos_, child.dep_))
+            # build subdiagram recursively
+            if subdiagram is not None: subdiagram = subdiagram @ build_dependency_diagram(child)
+            else: subdiagram = build_dependency_diagram(child)
+
+        # compose this token with the subdiagram
+        return subdiagram >> Box(token.text, dom, cod)
+
+
+def document_to_dependency_diagrams(doc):
+    """
+    Splits a spaCy document into sentences, then creates a dependency diagram for each sentence.
+    """
+    
+    # split sentences
+    sentences = [s for s in doc.sents]
+    
+    # get diagrams for each sentence
+    diagrams = [build_dependency_diagram(s.root) for s in sentences]
+    
+    return diagrams
+
+
+#### - Alternative Approach (probably less robust) - ####
 
 def assign_words(parsing, use_lemmas=False, generic_target=False):
     """
