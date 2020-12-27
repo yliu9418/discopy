@@ -35,12 +35,13 @@ We can check the Eckmann-Hilton argument, up to interchanger.
 >>> assert s0 @ s1 == s0 >> s1 == (s1 @ s0).interchange(0, 1)
 >>> assert s1 @ s0 == s1 >> s0 == (s0 @ s1).interchange(0, 1)
 
-.. image:: _static/imgs/EckmannHilton.gif
+.. image:: ../_static/imgs/EckmannHilton.gif
     :align: center
 """
 
 from discopy import cat, messages, drawing, rewriting
-from discopy.cat import Ob, Quiver, AxiomError
+from discopy.cat import Ob
+from discopy.drawing import DRAWING_ATTRIBUTES
 
 
 class Ty(Ob):
@@ -258,9 +259,8 @@ class Layer(cat.Box):
     """
     def __init__(self, left, box, right):
         self._left, self._box, self._right = left, box, right
-        name = "Layer({}, {}, {})".format(left, box, right)
         dom, cod = left @ box.dom @ right, left @ box.cod @ right
-        super().__init__(name, dom, cod)
+        super().__init__("Layer", dom, cod, data=box)
 
     def __iter__(self):
         yield self._left
@@ -317,12 +317,18 @@ class Diagram(cat.Arrow):
     >>> d.draw(figsize=(2, 2),
     ...        path='docs/_static/imgs/monoidal/arrow-example.png')
 
-    .. image:: ../../_static/imgs/monoidal/arrow-example.png
+    .. image:: ../_static/imgs/monoidal/arrow-example.png
         :align: center
     """
     @staticmethod
     def upgrade(old):
         return old
+
+    def downgrade(self):
+        """ Downcasting to :class:`discopy.monoidal.Diagram`. """
+        dom, cod = Ty(*self.dom), Ty(*self.cod)
+        boxes, offsets = [box.downgrade() for box in self.boxes], self.offsets
+        return Diagram(dom, cod, boxes, offsets)
 
     def __init__(self, dom, cod, boxes, offsets, layers=None):
         if not isinstance(dom, Ty):
@@ -348,9 +354,7 @@ class Diagram(cat.Arrow):
 
     @property
     def offsets(self):
-        """
-        The offset of a box is the number of wires to its left.
-        """
+        """ The offset of a box is the number of wires to its left. """
         return list(self._offsets)
 
     @property
@@ -397,7 +401,7 @@ class Diagram(cat.Arrow):
         ...     figsize=(2, 2),
         ...     path='docs/_static/imgs/monoidal/tensor-example.png')
 
-        .. image:: ../../_static/imgs/monoidal/tensor-example.png
+        .. image:: ../_static/imgs/monoidal/tensor-example.png
             :align: center
 
         Parameters
@@ -534,6 +538,22 @@ class Diagram(cat.Arrow):
             perm = perm[:i] + [i] + perm[i:j] + perm[j + 1:]
         return diagram
 
+    def permute(self, *perm):
+        """
+        Returns :code:`self >> self.permutation(perm, self.dom)`.
+
+        Parameters
+        ----------
+        perm : list of int
+            such that :code:`i` goes to :code:`perm[i]`
+
+        Examples
+        --------
+        >>> x, y, z = Ty('x'), Ty('y'), Ty('z')
+        >>> assert Id(x @ y @ z).permute(2, 1, 0).cod == z @ y @ x
+        """
+        return self >> self.permutation(list(perm), self.dom)
+
     @staticmethod
     def subclass(cls):
         """ Decorator for subclasses of Diagram. """
@@ -571,18 +591,61 @@ Diagram.id = Id
 
 class Box(cat.Box, Diagram):
     """
-    Implements a box as a diagram with :code:`boxes=[self], offsets=[0]`.
+    A box is a diagram with :code:`boxes==[self]` and :code:`offsets==[0]`.
 
+    Parameters
+    ----------
+    name : any
+        Name of the box.
+    dom : :class:`discopy.monoidal.Ty`
+        Domain of the box.
+    cod : :class:`discopy.monoidal.Ty`
+        Codomain of the box.
+    data : any, optional
+        Extra data in the box.
+
+    Other parameters
+    ----------------
+
+    draw_as_spider : bool, optional
+        Whether to draw the box as a spider.
+    draw_as_wires : bool, optional
+        Whether to draw the box as wires, e.g. :class:`discopy.monoidal.Swap`.
+    drawing_name : str, optional
+        The name to use when drawing the box.
+    tikzstyle_name : str, optional
+        The name of the style when tikzing the box.
+    color : str, optional
+        The color to use when drawing the box, one of
+        :code:`"white", "red", "green", "blue", "yellow", "black"`.
+        Default is :code:`"red" if draw_as_spider else "white"`.
+    shape : str, optional
+        The shape to use when drawing a spider,
+        one of :code:`"circle", "rectangle"`.
+
+    Examples
+    --------
     >>> f = Box('f', Ty('x', 'y'), Ty('z'))
     >>> assert Id(Ty('x', 'y')) >> f == f == f >> Id(Ty('z'))
     >>> assert Id(Ty()) @ f == f == f @ Id(Ty())
     >>> assert f == f[::-1][::-1]
     """
-    def __init__(self, name, dom, cod, data=None, _dagger=False):
-        cat.Box.__init__(self, name, dom, cod, data=data, _dagger=_dagger)
+    def downgrade(self):
+        """ Downcasting to :class:`discopy.monoidal.Box`. """
+        dom, cod = Ty(*self.dom), Ty(*self.cod)
+        box = Box(self.name, dom, cod, data=self.data, _dagger=self._dagger,
+                  **{attr: getattr(self, attr, default(self))
+                     for attr, default in DRAWING_ATTRIBUTES.items()})
+        return box
+
+    def __init__(self, name, dom, cod, **params):
+        cat.Box.__init__(self, name, dom, cod, **params)
         layer = Layer(dom[0:0], self, dom[0:0])
         layers = cat.Arrow(dom, cod, [layer], _scan=False)
         Diagram.__init__(self, dom, cod, [self], [0], layers=layers)
+        for attr, default in DRAWING_ATTRIBUTES.items():
+            value = params.pop(attr, getattr(self, attr, default(self)))
+            setattr(self, attr, value)
 
     def __eq__(self, other):
         if isinstance(other, Box):
@@ -610,9 +673,10 @@ class Swap(Box):
     def __init__(self, left, right):
         if len(left) != 1 or len(right) != 1:
             raise ValueError(messages.swap_vs_swaps(left, right))
-        self.left, self.right, self.draw_as_wire = left, right, True
+        self.left, self.right = left, right
         super().__init__(
             "Swap({}, {})".format(left, right), left @ right, right @ left)
+        self.draw_as_wires = True
 
     def __repr__(self):
         return "Swap({}, {})".format(repr(self.left), repr(self.right))
@@ -638,10 +702,47 @@ class Sum(cat.Sum, Box):
         return self.upgrade(sum(terms, unit))
 
     def draw(self, **params):
+        """ Drawing a sum as an equation with :code:`symbol='+'`. """
         return drawing.equation(*self.terms, symbol='+', **params)
 
 
+class Bubble(cat.Bubble, Box):
+    """
+    Bubble in a monoidal diagram, i.e. a unary operator on homsets.
+
+    Parameters
+    ----------
+    inside : discopy.monoidal.Diagram
+        The diagram inside the bubble.
+    dom : discopy.monoidal.Ty, optional
+        The domain of the bubble, default is :code:`inside.dom`.
+    cod : discopy.monoidal.Ty, optional
+        The codomain of the bubble, default is :code:`inside.cod`.
+
+    Examples
+    --------
+    >>> x, y = Ty('x'), Ty('y')
+    >>> f, g = Box('f', x, y ** 3), Box('g', y, y @ y)
+    >>> d = (f.bubble(dom=x @ x, cod=y) >> g).bubble()
+    >>> d.draw(path='docs/_static/imgs/monoidal/bubble-example.png')
+
+    .. image:: ../_static/imgs/monoidal/bubble-example.png
+        :align: center
+    """
+    def __init__(self, inside, dom=None, cod=None, **params):
+        self.drawing_name = params.get("drawing_name", "")
+        cat.Bubble.__init__(self, inside, dom, cod)
+        Box.__init__(self, self._name, self.dom, self.cod, data=self.data)
+
+    def downgrade(self):
+        """ Downcasting to :class:`discopy.monoidal.Bubble`. """
+        result = Bubble(self.inside.downgrade(), Ty(*self.dom), Ty(*self.cod))
+        result.drawing_name = self.drawing_name
+        return result
+
+
 Diagram.sum = Sum
+Diagram.bubble_factory = Bubble
 
 
 class Functor(cat.Functor):
@@ -657,11 +758,12 @@ class Functor(cat.Functor):
     >>> assert F(F(f0)) == f0
     >>> assert F(f0 @ f1) == f1 @ f0
     >>> assert F(f0 >> f0[::-1]) == f1 >> f1[::-1]
+    >>> source, target = f0 >> f0[::-1], F(f0 >> f0[::-1])
+    >>> drawing.equation(
+    ...     source, target, symbol='$\\\\mapsto$', figsize=(4, 2),
+    ...     path='docs/_static/imgs/monoidal/functor-example.png')
 
-    >>> drawing.equation(f0 >> f0[::-1], F(f0 >> f0[::-1]), symbol='|->',\
-        figsize=(4, 2), path='docs/_static/imgs/monoidal/functor-example.png')
-
-    .. image:: ../../_static/imgs/monoidal/functor-example.png
+    .. image:: ../_static/imgs/monoidal/functor-example.png
         :align: center
     """
     def __init__(self, ob, ar, ob_factory=None, ar_factory=None):
@@ -672,7 +774,7 @@ class Functor(cat.Functor):
         super().__init__(ob, ar, ob_factory=ob_factory, ar_factory=ar_factory)
 
     def __call__(self, diagram):
-        if isinstance(diagram, Sum):
+        if isinstance(diagram, (Sum, Bubble)):
             super().__call__(diagram)
         if isinstance(diagram, Ty):
             return self.ob_factory().tensor(*[

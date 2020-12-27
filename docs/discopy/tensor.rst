@@ -6,7 +6,7 @@ tensor
 
 .. autosummary::
    :template: class.rst
-   :toctree: _autosummary/tensor
+   :toctree: ../_autosummary
 
    discopy.tensor.Dim
    discopy.tensor.Tensor
@@ -14,4 +14,5 @@ tensor
    discopy.tensor.Diagram
    discopy.tensor.Id
    discopy.tensor.Box
-   discopy.tensor.Frobenius
+   discopy.tensor.Spider
+   discopy.tensor.Bubble

@@ -124,27 +124,27 @@ def normalize(self, left=False):
             break
 
 
-def normal_form(self, normalize=None, **params):
+def normal_form(self, normalizer=None, **params):
     """
     Returns the normal form of a diagram.
 
     Parameters
     ----------
-    normalize : iterable of :class:`Diagram`, optional
+    normalizer : iterable of :class:`Diagram`, optional
         Generator that yields rewrite steps, default is
         :meth:`Diagram.normalize`.
 
     params : any, optional
-        Passed to :code:`normalize`.
+        Passed to :code:`normalizer`.
 
     Raises
     ------
     NotImplementedError
-        Whenever :code:`normalize` yields the same rewrite steps twice.
+        Whenever :code:`normalizer` yields the same rewrite steps twice.
     """
     from discopy.monoidal import Diagram
     diagram, cache = self, set()
-    for _diagram in (normalize or Diagram.normalize)(diagram, **params):
+    for _diagram in (normalizer or Diagram.normalize)(diagram, **params):
         if _diagram in cache:
             raise NotImplementedError(messages.is_not_connected(self))
         diagram = _diagram
@@ -183,14 +183,14 @@ def foliate(self, yield_slices=False):
     >>> d.draw(figsize=(4, 2),
     ...        path='docs/_static/imgs/monoidal/foliate-example-1a.png')
 
-    .. image:: ../../_static/imgs/monoidal/foliate-example-1a.png
+    .. image:: ../_static/imgs/monoidal/foliate-example-1a.png
         :align: center
 
     >>> drawing.equation(
     ...     *slices, symbol=', ', figsize=(4, 2),
     ...     path='docs/_static/imgs/monoidal/foliate-example-1b.png')
 
-    .. image:: ../../_static/imgs/monoidal/foliate-example-1b.png
+    .. image:: ../_static/imgs/monoidal/foliate-example-1b.png
         :align: center
 
     >>> ket = Box('ket', Ty(), x)
@@ -202,7 +202,7 @@ def foliate(self, yield_slices=False):
     >>> kets.draw(figsize=(2, 2),
     ...           path='docs/_static/imgs/monoidal/foliate-example-2.png')
 
-    .. image:: ../../_static/imgs/monoidal/foliate-example-2.png
+    .. image:: ../_static/imgs/monoidal/foliate-example-2.png
         :align: center
 
     """

@@ -2,16 +2,17 @@
 
 """ Implements ZX diagrams. """
 
-from discopy import messages, monoidal, rigid, quantum
+from discopy import messages, monoidal, rigid, quantum, tensor
 from discopy.monoidal import Sum
 from discopy.rigid import Functor, PRO
 from discopy.quantum.circuit import Circuit, qubit
 from discopy.quantum.gates import (
     Bra, Ket, Rz, Rx, CX, CZ, CRz, CRx, format_number)
+from math import pi
 
 
 @monoidal.Diagram.subclass
-class Diagram(rigid.Diagram):
+class Diagram(tensor.Diagram):
     """ ZX Diagram. """
     def __repr__(self):
         return super().__repr__().replace('Diagram', 'zx.Diagram')
@@ -39,7 +40,8 @@ class Diagram(rigid.Diagram):
             left, right, ar_factory=Diagram, cap_factory=lambda *_: Z(0, 2))
 
     def draw(self, **params):
-        return super().draw(**dict(params, draw_types=False))
+        """ ZX diagrams don't have labels on wires. """
+        return super().draw(**dict(params, draw_type_labels=False))
 
     def grad(self, var):
         """
@@ -57,9 +59,9 @@ class Diagram(rigid.Diagram):
         Examples
         --------
         >>> from sympy.abc import phi
-        >>> assert Z(1, 1, phi).grad(phi) == scalar(0.5j) @ Z(1, 1, phi - .5)
+        >>> assert Z(1, 1, phi).grad(phi) == scalar(pi) @ Z(1, 1, phi + .5)
         """
-        return Circuit.grad(self, var)
+        return super().grad(var)
 
     def to_pyzx(self):
         """
@@ -113,12 +115,12 @@ class Diagram(rigid.Diagram):
             else:
                 raise TypeError(messages.type_err(Box, box))
         for i, _ in enumerate(self.cod):
-            node = graph.add_vertex(VertexType.BOUNDARY)
-            input, hadamard = scan[i]
+            target = graph.add_vertex(VertexType.BOUNDARY)
+            source, hadamard = scan[i]
             etype = EdgeType.HADAMARD if hadamard else EdgeType.SIMPLE
-            graph.add_edge((input, node), etype)
-            graph.set_position(node, i, len(self) + 1)
-            graph.outputs.append(node)
+            graph.add_edge((source, target), etype)
+            graph.set_position(target, i, len(self) + 1)
+            graph.outputs.append(target)
         return graph
 
     @staticmethod
@@ -228,12 +230,12 @@ Diagram.id = Id
 
 class Box(rigid.Box, Diagram):
     """ Box in a ZX diagram. """
-    def __init__(self, name, dom, cod, data=None):
+    def __init__(self, name, dom, cod, **params):
         if not isinstance(dom, PRO):
             raise TypeError(messages.type_err(PRO, dom))
         if not isinstance(cod, PRO):
             raise TypeError(messages.type_err(PRO, cod))
-        rigid.Box.__init__(self, name, dom, cod, data)
+        rigid.Box.__init__(self, name, dom, cod, **params)
         Diagram.__init__(self, dom, cod, [self], [0])
 
 
@@ -286,8 +288,8 @@ class Spider(Box):
             return Sum([], self.dom, self.cod)
         gradient = self.phase.diff(var)
         gradient = complex(gradient) if not gradient.free_symbols else gradient
-        return Scalar(.5j * gradient)\
-            @ type(self)(len(self.dom), len(self.cod), self.phase - .5)
+        return Scalar(pi * gradient)\
+            @ type(self)(len(self.dom), len(self.cod), self.phase + .5)
 
 
 class Z(Spider):
@@ -332,7 +334,7 @@ H = Had()
 class Scalar(Box):
     """ Scalar in a ZX diagram. """
     def __init__(self, data):
-        super().__init__("scalar", PRO(0), PRO(0), data)
+        super().__init__("scalar", PRO(0), PRO(0), data=data)
         self.drawing_name = format_number(data)
 
     @property

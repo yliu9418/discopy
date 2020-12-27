@@ -11,15 +11,16 @@ The objects are given by the free pregroup, the arrows by planar diagrams.
 >>> assert t.l.r == t == t.r.l
 >>> left_snake, right_snake = Id(n.r).transpose(left=True), Id(n.l).transpose()
 >>> assert left_snake.normal_form() == Id(n) == right_snake.normal_form()
+>>> from discopy import drawing
+>>> drawing.equation(
+...     left_snake, Id(n), right_snake, figsize=(4, 2),
+...     path='docs/_static/imgs/rigid/snake-equation.png')
 
->>> drawing.equation(left_snake, Id(n), right_snake, figsize=(4, 2),\\
-... path='docs/_static/imgs/rigid/rigid-example.png')
-
-.. image:: _static/imgs/rigid/rigid-example.png
+.. image:: ../_static/imgs/rigid/snake-equation.png
     :align: center
 """
 
-from discopy import cat, monoidal, messages, drawing, rewriting
+from discopy import cat, monoidal, messages, rewriting
 from discopy.cat import AxiomError
 
 
@@ -147,7 +148,7 @@ class Diagram(monoidal.Diagram):
     >>> d.draw(figsize=(3, 2),
     ...        path='docs/_static/imgs/rigid/diagram-example.png')
 
-    .. image:: ../../_static/imgs/rigid/diagram-example.png
+    .. image:: ../_static/imgs/rigid/diagram-example.png
         :align: center
     """
     @staticmethod
@@ -191,7 +192,7 @@ class Diagram(monoidal.Diagram):
         >>> Diagram.cups(a @ b, (a @ b).r).draw(figsize=(3, 1),\\
         ... margins=(0.3, 0.05), path='docs/_static/imgs/rigid/cups.png')
 
-    .. image:: ../../_static/imgs/rigid/cups.png
+    .. image:: ../_static/imgs/rigid/cups.png
         :align: center
         """
         return cups(left, right)
@@ -264,13 +265,13 @@ class Diagram(monoidal.Diagram):
             >> self.id(self.dom.r) @ self @ self.id(self.cod.r)\
             >> self.id(self.dom.r) @ self.cups(self.cod, self.cod.r)
 
-    def normal_form(self, normalize=None, **params):
+    def normal_form(self, normalizer=None, **params):
         """
         Implements the normalisation of rigid monoidal categories,
         see arxiv:1601.05372, definition 2.12.
         """
         return super().normal_form(
-            normalize=normalize or Diagram.normalize, **params)
+            normalizer=normalizer or Diagram.normalize, **params)
 
     normalize = rewriting.snake_removal
 
@@ -293,8 +294,8 @@ class Box(monoidal.Box, Diagram):
     >>> Box('f', a, b.l @ b, data={42})
     Box('f', Ty('a'), Ty(Ob('b', z=-1), 'b'), data={42})
     """
-    def __init__(self, name, dom, cod, data=None, _dagger=False):
-        monoidal.Box.__init__(self, name, dom, cod, data=data, _dagger=_dagger)
+    def __init__(self, name, dom, cod, **params):
+        monoidal.Box.__init__(self, name, dom, cod, **params)
         Diagram.__init__(self, dom, cod, [self], [0], layers=self.layers)
 
 
@@ -302,8 +303,7 @@ class Swap(monoidal.Swap, Box):
     """ Implements swaps of basic types in a rigid category. """
     def __init__(self, left, right):
         monoidal.Swap.__init__(self, left, right)
-        dom, cod = left @ right, right @ left
-        Box.__init__(self, "Swap({}, {})".format(left, right), dom, cod)
+        Box.__init__(self, self.name, self.dom, self.cod)
 
 
 class Cup(Box):
@@ -316,7 +316,7 @@ class Cup(Box):
     >>> Cup(n, n.r).draw(figsize=(2,1), margins=(0.5, 0.05),\\
     ... path='docs/_static/imgs/rigid/cup.png')
 
-    .. image:: ../../_static/imgs/rigid/cup.png
+    .. image:: ../_static/imgs/rigid/cup.png
         :align: center
     """
     def __init__(self, left, right):
@@ -330,8 +330,9 @@ class Cup(Box):
             raise AxiomError(messages.are_not_adjoints(left, right))
         if left == right.r:
             raise AxiomError(messages.wrong_adjunction(left, right, cup=True))
-        self.left, self.right, self.draw_as_wire = left, right, True
+        self.left, self.right = left, right
         super().__init__("Cup({}, {})".format(left, right), left @ right, Ty())
+        self.draw_as_wires = True
 
     def dagger(self):
         return Cap(self.left, self.right)
@@ -350,7 +351,7 @@ class Cap(Box):
     >>> Cap(n, n.l).draw(figsize=(2,1), margins=(0.5, 0.05),\\
     ... path='docs/_static/imgs/rigid/cap.png')
 
-    .. image:: ../../_static/imgs/rigid/cap.png
+    .. image:: ../_static/imgs/rigid/cap.png
         :align: center
     """
     def __init__(self, left, right):
@@ -364,8 +365,9 @@ class Cap(Box):
             raise AxiomError(messages.are_not_adjoints(left, right))
         if left.r == right:
             raise AxiomError(messages.wrong_adjunction(left, right, cup=False))
-        self.left, self.right, self.draw_as_wire = left, right, True
+        self.left, self.right = left, right
         super().__init__("Cap({}, {})".format(left, right), Ty(), left @ right)
+        self.draw_as_wires = True
 
     def dagger(self):
         return Cup(self.left, self.right)
@@ -389,11 +391,12 @@ class Functor(monoidal.Functor):
     >>> F = Functor(ob, ar)
     >>> sentence = Alice @ loves @ Bob >> Cup(n, n.r) @ Id(s) @ Cup(n.l, n)
     >>> assert F(sentence).normal_form() == Alice >> Id(n) @ Bob >> love_box
+    >>> from discopy import drawing
+    >>> drawing.equation(
+    ...     sentence, F(sentence), symbol='$\\\\mapsto$', figsize=(5, 2),
+    ...     path='docs/_static/imgs/rigid/functor-example.png')
 
-    >>> drawing.equation(sentence, F(sentence), symbol='|->', figsize=(5,2),\\
-    ... path='docs/_static/imgs/rigid/functor-example.png')
-
-    .. image:: ../../_static/imgs/rigid/functor-example.png
+    .. image:: ../_static/imgs/rigid/functor-example.png
         :align: center
     """
     def __init__(self, ob, ar, ob_factory=Ty, ar_factory=Diagram):
