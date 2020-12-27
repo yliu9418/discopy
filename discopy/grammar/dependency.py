@@ -28,10 +28,10 @@ from discopy import Box, Ty, Word
 from discopy.grammar import eager_parse
 
 
-def build_dependency_diagram(token):
+def dependency_tree(token):
     """
-    Given a spaCy token, recursively builds a dependency diagram from its
-    dependent subtree. This can be applied to the 'ROOT' token of a spaCy
+    Given a spaCy token, recursively builds a dependency tree from its
+    dependent children. This can be applied to the 'ROOT' token of a spaCy
     span object to create a dependency diagram for an entire 'semantic chunk'.
 
     The objects of the diagram are tuples (part-of-speech, dependency) where
@@ -41,7 +41,7 @@ def build_dependency_diagram(token):
     example::
         sentences = [s for s in doc.sents]
         R = sentences[0].root
-        build_dependency_diagram(R).draw(figsize=(12,10))
+        dependency_tree(R).draw(figsize=(12,10))
     """
     
     # codomain is the token.dep_
@@ -60,25 +60,30 @@ def build_dependency_diagram(token):
             # build domain from dependent children
             dom = dom @ Ty((child.pos_, child.dep_))
             # build subdiagram recursively
-            if subdiagram is not None: subdiagram = subdiagram @ build_dependency_diagram(child)
-            else: subdiagram = build_dependency_diagram(child)
+            if subdiagram is not None: subdiagram = subdiagram @ dependency_tree(child)
+            else: subdiagram = dependency_tree(child)
 
         # compose this token with the subdiagram
         return subdiagram >> Box(token.text, dom, cod)
 
 
-def document_to_dependency_diagrams(doc):
+def dependency_forest(doc):
     """
-    Splits a spaCy document into sentences, then creates a dependency diagram for each sentence.
+    Splits a spaCy document into sentences, then creates a dependency tree for each sentence.
+    
+    Returns
+    -------
+    forest : [monoidal.Diagram]
+            python list of dependency trees 
     """
     
     # split sentences
     sentences = [s for s in doc.sents]
     
     # get diagrams for each sentence
-    diagrams = [build_dependency_diagram(s.root) for s in sentences]
+    forest = [dependency_tree(s.root) for s in sentences]
     
-    return diagrams
+    return forest
 
 
 #### - Alternative Approach (probably less robust) - ####
