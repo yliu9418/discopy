@@ -4,6 +4,29 @@ from discopy.tensor import np, Dim, Tensor
 from discopy.quanthd.circuit import Qudit, Box, Sum, ScalarType
 
 
+class Gate(Box):
+    def __init__(self, name, dom, array=None, data=None, _dagger=False):
+        dom = Qudit(dom) is isinstance(dom, int) else dom
+        if array is not None:
+            # TODO Redo here
+            self._array = np.array(array).reshape(dom.array_shape())
+        super().__init__(name, dom, dom, data=data, _dagger=_dagger)
+
+    @property
+    def array(self):
+        return self._array
+
+    def __repr__(self):
+        return "Gate({}, dom={}, array={})".format(
+            repr(self.name), self.dom,
+            np.array2string(self.array.flatten()))
+
+    def dagger(self):   # TODO Note that gates should implement this...
+        return Gate(
+            self.name, self.dom, self.array,
+            _dagger=None if self._dagger is None else not self._dagger)
+
+
 def _e_k(n, k):
     v = [0] * n
     v[k] = 1
@@ -30,6 +53,8 @@ class Ket(Box):
 
     def dagger(self):
         return Bra(*self.string)
+
+    # TODO Add ket() and bra() on qubit type?
 
 
 class Bra(Box):
