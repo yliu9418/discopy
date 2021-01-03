@@ -14,6 +14,11 @@ class Qudit(Dim):
     def __repr__(self):
         return "Qudit({})".format(', '.join(map(repr, self)) or '1')
 
+    def array_shape():
+        # TODO 2 * n_qubits * (2, ) or (1, )
+        pass
+
+
 
 ScalarType = Qudit(1)
 
