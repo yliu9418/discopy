@@ -6,6 +6,15 @@ from discopy.rigid import Ob, Ty, Diagram
 from discopy.tensor import np, Dim, Tensor
 
 
+def _box_type(t, exp_size=None):
+    t = Qudit(t) if isinstance(t, int) else t
+    if not isinstance(t, Qudit):
+        raise TypeError(messages.type_err(Qudit, type_))
+    if exp_size and len(t)!=exp_size:
+        raise ValueError(f'Expected {exp_size} qudits, found {len(t)}')
+    return t
+
+
 class Qudit(Dim):
     @staticmethod
     def upgrade(old):
@@ -13,11 +22,6 @@ class Qudit(Dim):
 
     def __repr__(self):
         return "Qudit({})".format(', '.join(map(repr, self)) or '1')
-
-    def array_shape():
-        # TODO 2 * n_qubits * (2, ) or (1, )
-        pass
-
 
 
 ScalarType = Qudit(1)
@@ -34,8 +38,7 @@ class Circuit(tensor.Diagram):
 
 class Id(rigid.Id, Circuit):
     def __init__(self, dom):
-        if isinstance(dom, int):
-            dom = Qudit(dom)
+        dom = _box_type(dom)
         rigid.Id.__init__(self, dom)
         Circuit.__init__(self, dom, dom, [], [])
 
@@ -50,12 +53,8 @@ Circuit.id = Id
 
 
 class Box(rigid.Box, Circuit):
-    def __init__(self, name, dom, cod,
-                 data=None, _dagger=False):
-        if dom and not isinstance(dom, Qudit):
-            raise TypeError(messages.type_err(Qudit, dom))
-        if cod and not isinstance(cod, Qudit):
-            raise TypeError(messages.type_err(Qudit, cod))
+    def __init__(self, name, dom, cod, data=None, _dagger=False):
+        dom, cod = _box_type(dom), _box_type(cod)
         rigid.Box.__init__(self, name, dom, cod, data=data, _dagger=_dagger)
         Circuit.__init__(self, dom, cod, [self], [0])
 
