@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+"""
+Implementation of the high-dimensional quantum circuits.
+"""
 
 from discopy import messages, monoidal, rigid, tensor
 from discopy.cat import AxiomError
@@ -6,12 +8,14 @@ from discopy.rigid import Ob, Ty, Diagram
 from discopy.tensor import np, Dim, Tensor
 
 
-def _box_type(t, exp_size=None):
+def _box_type(t, *, exp_size=None, min_dim=None):
     t = Qudit(t) if isinstance(t, int) else t
     if not isinstance(t, Qudit):
         raise TypeError(messages.type_err(Qudit, type_))
     if exp_size and len(t)!=exp_size:
-        raise ValueError(f'Expected {exp_size} qudits, found {len(t)}')
+        raise ValueError(f'Expected {exp_size} qudits in {t}, found {len(t)}')
+    if min_dim and np.any(np.array(t, dtype=np.int) < min_dim):
+        raise ValueError(f'Dimension less than the expected {min_dim}')
     return t
 
 
@@ -43,7 +47,7 @@ class Id(rigid.Id, Circuit):
         Circuit.__init__(self, dom, dom, [], [])
 
     def __repr__(self):
-        return "Id({})".format(len(self.dom))   # TODO Redo
+        return "Id({})".format(len(self.dom))   # TODO Review
 
     def __str__(self):
         return repr(self)
