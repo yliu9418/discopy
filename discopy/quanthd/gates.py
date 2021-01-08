@@ -26,7 +26,7 @@ class Gate(Box):
             repr(self.name), self.dom,
             np.array2string(self.array.flatten()))
 
-    def dagger(self):   # TODO Note that gates should implement this...
+    def dagger(self):
         return Gate(
             self.name, self.dom, self.array,
             _dagger=None if self._dagger is None else not self._dagger)
@@ -38,7 +38,7 @@ def _e_k(n, k):
     return v
 
 
-def _ket_array(*string, type_):
+def _braket_array(*string, type_):
     if not isinstance(type_, Qudit):
         raise TypeError(messages.type_err(Qudit, type_))
     if len(string) != len(type_):
@@ -54,7 +54,7 @@ class Ket(Box):
         name = "Ket({})".format(', '.join(map(str, string)))    # TODO Include dom
         super().__init__(name, dom, cod)
         self.string = string
-        self.array = _ket_array(*string, type_=cod)
+        self.array = _braket_array(*string, type_=cod)
 
     def dagger(self):
         return Bra(*self.string)
@@ -66,25 +66,75 @@ class Bra(Box):
         name = "Bra({})".format(', '.join(map(str, bitstring)))
         super().__init__(name, dom, cod)
         self.string = string
-        self.array = _ket_array(*string, type_=dom)
+        self.array = _braket_array(*string, type_=dom)
 
     def dagger(self):
         return Ket(*self.string)
 
 
 class X(Gate):
+    """ Generalized X gate. """
     def __init__(self, dom):
-        dom = _box_type(dom, exp_size=1)
+        dom = _box_type(dom, exp_size=1, min_dim=2)
         super().__init__(name=f'X({dom[0]})', dom=dom)
 
-    # TODO dagger should be X**(d-1) (pow is sequential composition here)
-    # TODO array
+    @property
+    def array(self):
+        d = self.dom[0]
+        return np.eye(d)[:, (np.arange(d)+1) % d]
+
+    # def dagger(self):
+    #    d = self.dom[0]
+    #    return type(self)(self.dom)**(d - 1)
+
+
+class Neg(Gate):
+    """ Negation gate. """
+    def __init__(self, dom):
+        dom = _box_type(dom, exp_size=1, min_dim=2)
+        super().__init__(name=f'Neg({dom[0]})', dom=dom)
+
+    @property
+    def array(self):
+        d = self.dom[0]
+        return np.eye(d)[:, (d - np.arange(d)) % d]
+
+    def dagger(self):
+        # return type(self)(self.dom)**2
+        c = type(self)(self.dom)
+        return c >> c
 
 
 class Z(Gate):
+    """ Generalized Z gate. """
     def __init__(self, dom):
-        dom = _box_type(dom, exp_size=1)
+        dom = _box_type(dom, exp_size=1, min_dim=2)
         super().__init__(name=f'Z({dom[0]})', dom=dom)
 
-    # TODO dagger
-    # TODO array
+    @property
+    def array(self):
+        d = self.dom[0]
+        diag = np.exp(np.arange(d)*2j*np.pi/d)
+        return np.diag(diag)
+
+    # def dagger(self):
+    #    d = self.dom[0]
+    #    return type(self)(self.dom)**(d - 1)
+
+
+class H(Gate):
+    """
+    Discrete Fourier transform gate. Note that in a qubit system this corresponds
+    to the one-qubit Hadamard gate.
+    """
+    def __init__(self, dom):
+        dom = _box_type(dom, exp_size=1)
+        super().__init__(name=f'H({dom[0]})', dom=dom)
+
+    @property
+    def array(self):
+        d = self.dom[0]
+        m = (np.arange(d)*2j*np.pi/d)[..., np.newaxis]
+        m = m @ np.arange(d)[np.newaxis]
+        m = np.exp(m)/np.sqrt(d)
+        return m
