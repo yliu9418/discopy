@@ -5,9 +5,8 @@ from discopy.quanthd.circuit import Qudit, Box, Sum, ScalarType, _box_type
 
 
 def array_shape(dom, cod):
-    dom = tuple(cod) + tuple(dom)
-    t = map(lambda x: int(x.name), tuple(cod) + tuple(dom))
-    return tuple(t)
+    assert isinstance(dom, Qudit) and isinstance(cod, Qudit)
+    return tuple(cod) + tuple(dom)
 
 
 class Gate(Box):
@@ -57,42 +56,38 @@ class Ket(Box):
         self.array = _braket_array(*string, type_=cod)
 
     def dagger(self):
-        return Bra(*self.string)
+        return Bra(*self.string, dom=self.cod)
 
 
 class Bra(Box):
     def __init__(self, *string, dom):
         dom, cod = _box_type(dom), ScalarType ** 0
-        name = "Bra({})".format(', '.join(map(str, bitstring)))
+        name = "Bra({})".format(', '.join(map(str, string)))
         super().__init__(name, dom, cod)
         self.string = string
         self.array = _braket_array(*string, type_=dom)
 
     def dagger(self):
-        return Ket(*self.string)
+        return Ket(*self.string, cod=self.dom)
 
 
 class X(Gate):
     """ Generalized X gate. """
     def __init__(self, dom):
         dom = _box_type(dom, exp_size=1, min_dim=2)
-        super().__init__(name=f'X({dom[0]})', dom=dom)
+        super().__init__(name='X', dom=dom)
 
     @property
     def array(self):
         d = self.dom[0]
         return np.eye(d)[:, (np.arange(d)+1) % d]
 
-    # def dagger(self):
-    #    d = self.dom[0]
-    #    return type(self)(self.dom)**(d - 1)
-
 
 class Neg(Gate):
     """ Negation gate. """
     def __init__(self, dom):
         dom = _box_type(dom, exp_size=1, min_dim=2)
-        super().__init__(name=f'Neg({dom[0]})', dom=dom)
+        super().__init__(name='Neg', dom=dom)
 
     @property
     def array(self):
@@ -100,26 +95,20 @@ class Neg(Gate):
         return np.eye(d)[:, (d - np.arange(d)) % d]
 
     def dagger(self):
-        # return type(self)(self.dom)**2
-        c = type(self)(self.dom)
-        return c >> c
+        return type(self)(self.dom)
 
 
 class Z(Gate):
     """ Generalized Z gate. """
     def __init__(self, dom):
         dom = _box_type(dom, exp_size=1, min_dim=2)
-        super().__init__(name=f'Z({dom[0]})', dom=dom)
+        super().__init__(name=f'Z', dom=dom)
 
     @property
     def array(self):
         d = self.dom[0]
         diag = np.exp(np.arange(d)*2j*np.pi/d)
         return np.diag(diag)
-
-    # def dagger(self):
-    #    d = self.dom[0]
-    #    return type(self)(self.dom)**(d - 1)
 
 
 class H(Gate):
@@ -129,7 +118,7 @@ class H(Gate):
     """
     def __init__(self, dom):
         dom = _box_type(dom, exp_size=1)
-        super().__init__(name=f'H({dom[0]})', dom=dom)
+        super().__init__(name=f'H', dom=dom)
 
     @property
     def array(self):
@@ -138,3 +127,6 @@ class H(Gate):
         m = m @ np.arange(d)[np.newaxis]
         m = np.exp(m)/np.sqrt(d)
         return m
+
+
+SINGLE_QUDIT_GATE_CLASSES = [X, Z, H, Neg]
