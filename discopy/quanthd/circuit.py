@@ -8,7 +8,7 @@ from discopy.rigid import Ob, Ty, Diagram
 from discopy.tensor import np, Dim, Tensor
 
 
-def _box_type(t, *, exp_size=None, min_dim=None):
+def _box_type(t, *, exp_size=None, min_dim=2):
     t = Qudit(t) if isinstance(t, int) else t
     if not isinstance(t, Qudit):
         raise TypeError(messages.type_err(Qudit, type_))

@@ -2,6 +2,7 @@ from discopy import messages
 from discopy.cat import AxiomError
 from discopy.tensor import np, Dim, Tensor
 from discopy.quanthd.circuit import Qudit, Box, Sum, ScalarType, _box_type
+from discopy.quanthd.circuit import Id
 
 
 def array_shape(dom, cod):
@@ -127,6 +128,26 @@ class H(Gate):
         m = m @ np.arange(d)[np.newaxis]
         m = np.exp(m)/np.sqrt(d)
         return m
+
+
+class Add(Gate):
+    def __init__(self, dom):
+        dom = _box_type(dom, exp_size=2)
+        if dom[0] != dom[1]:
+            raise ValueError('Qudits expected having same dimension')
+        super().__init__(name=f'Add', dom=dom)
+
+    @property
+    def array(self):
+        d = self.dom[0]
+        p = np.mgrid[:d, :d].reshape((2, -1)).T
+        p = np.sum(p, axis=1) % d
+        p += np.repeat(np.arange(d)*d, d)
+        return np.eye(len(p))[:, p]
+
+
+def nadd(dom):
+    return Add(dom) >> (Id(dom[1]) @ Neg(dom[0]))
 
 
 SINGLE_QUDIT_GATE_CLASSES = [X, Z, H, Neg]
