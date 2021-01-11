@@ -9,7 +9,8 @@ from discopy.tensor import np, Dim, Tensor
 
 
 def _box_type(t, *, exp_size=None, min_dim=2):
-    t = Qudit(t) if isinstance(t, int) else t
+    n = 1 if not exp_size else exp_size
+    t = Qudit(*(t, )*n) if isinstance(t, int) else t
     if not isinstance(t, Qudit):
         raise TypeError(messages.type_err(Qudit, type_))
     if exp_size and len(t)!=exp_size:
@@ -38,6 +39,21 @@ class Circuit(tensor.Diagram):
 
     def grad(self, var):
         return super().grad(var)
+    
+    @staticmethod
+    def cups(left, right):
+        from discopy.quanthd import nadd, H, Bra
+
+        def cup_factory(left, right):
+            if left != right or not isinstance(left, Qudit):
+                raise ValueError()
+            d = left[0]
+            return nadd(d) >> H(d) @ Id(d) >> Bra(0, 0, dom=Qudit(d, d)) # TODO mul by sqrt(d)
+        return rigid.cups(left, right, ar_factory=Circuit, cup_factory=cup_factory)
+
+    @staticmethod
+    def caps(left, right):
+        return Circuit.cups(left, right).dagger()
 
 
 class Id(rigid.Id, Circuit):

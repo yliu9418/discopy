@@ -22,18 +22,26 @@ def _assert_eval_op_diff_0(op1, op2):
     _assert_norm_0(op1.eval().array - op2.eval().array)
 
 
-def test_dim_2():
-    dom2 = Qudit(2, 2)
-    qubit_id_op = qugates.Box.id(qugates.qubit)
-    equiv_pairs = [(H(2), qugates.H), (X(2), qugates.X),
-                   (Z(2), qugates.Z), (Neg(2), qubit_id_op),
-                   (Add(dom2), qugates.CX), (nadd(dom2), qugates.CX)]
-    for pair in equiv_pairs:
-        _assert_eval_op_diff_0(pair[0], pair[1])
+def _array_to_square_mat(m):
+    m = np.asarray(m)
+    return m.reshape((int(np.sqrt(m.size)), )*2)
 
 
 def _op_pow(op, n):
     return reduce(lambda a, b: a >> b, [op]*n, Box.id(op.dom))
+
+
+def test_dim_2():
+    # Special case d=2 (qubit)
+    assert X(2).dom == Qudit(2)
+    assert Add(2).dom == Qudit(2, 2)
+
+    qubit_id_op = qugates.Box.id(qugates.qubit)
+    equiv_pairs = [(H(2), qugates.H), (X(2), qugates.X),
+                   (Z(2), qugates.Z), (Neg(2), qubit_id_op),
+                   (Add(2), qugates.CX), (nadd(2), qugates.CX)]
+    for pair in equiv_pairs:
+        _assert_eval_op_diff_0(pair[0], pair[1])
 
 
 def test_basic_identities():
@@ -59,31 +67,34 @@ def test_braket():
     from itertools import product
     for d in range(2, 5):
         for i, j in product(range(d), repeat=2):
+            assert Ket(i, cod=d).dom == Qudit(d)**0
+            assert Ket(i, cod=d).cod == Qudit(d)
             # <i|j>=delta_{i, j}
             m = (Ket(i, cod=d) >> Bra(j, dom=d)).eval().array
             _assert_norm_0(float(m) - (i==j))
 
+            assert Bra(i, dom=d).dom == Qudit(d)
+            assert Bra(i, dom=d).cod == Qudit(d)**0
             m = (Bra(i, dom=d).dagger() >> Ket(j, cod=d).dagger()).eval().array
             _assert_norm_0(float(m) - (i==j))
+
+            assert Ket(i, cod=d).dagger() == Bra(i, dom=d)
+            assert Ket(i, cod=d) == Bra(i, dom=d).dagger()
 
     for d in range(2, 9):
         m = (Ket(0, cod=d) >> H(d)).eval().array
         _assert_norm_0(m*(d/np.sqrt(d)) - np.ones(d))
 
 
-def _array_to_square_mat(m):
-    m = np.asarray(m)
-    return m.reshape((int(np.sqrt(m.size)), )*2)
-
-
 def test_add():
-    for dom in [Qudit(2, 3), Qudit(1, 2), 1, 2]:
+    for dom in [Qudit(2, 3), Qudit(1, 2), 1]:
         with raises(ValueError):
             Add(dom)
 
     for d in range(2, 5):
-        dom2 = Qudit(d, d)
-        m = Add(dom2).eval().array
+        assert Add(d).dom == Add(d).cod == Qudit(d, d)
+
+        m = Add(d).eval().array
         m = _array_to_square_mat(m)
         assert m.shape == (d**2, )*2
         # Operator matrix expected to be a permutation matrix
@@ -93,4 +104,4 @@ def test_add():
         _assert_norm_0(np.ones_like(m) @ m - np.ones_like(m))
 
         # NADD self-inverse
-        _assert_op_is_iden(_op_pow(nadd(dom2), 2), force_square_mat=True)
+        _assert_op_is_iden(_op_pow(nadd(d), 2), force_square_mat=True)
