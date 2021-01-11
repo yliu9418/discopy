@@ -147,7 +147,17 @@ class Add(Gate):
 
 
 def nadd(dom):
+    dom = _box_type(dom, exp_size=2)
     return Add(dom) >> (Id(dom[1]) @ Neg(dom[0]))
+
+
+def cup(dom):
+    dom = _box_type(dom, exp_size=2)
+    return Box.cups(Qudit(dom[0]), Qudit(dom[1]))
+
+
+def cap(cod):
+    return cup(cod).dagger()
 
 
 SINGLE_QUDIT_GATE_CLASSES = [X, Z, H, Neg]
