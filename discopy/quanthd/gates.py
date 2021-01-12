@@ -2,7 +2,8 @@ from discopy import messages
 from discopy.cat import AxiomError
 from discopy.tensor import np, Dim, Tensor
 from discopy.quanthd.circuit import Qudit, Box, Sum, ScalarType, _box_type
-from discopy.quanthd.circuit import Id
+from discopy.quanthd.circuit import Id, Circuit
+from discopy.quantum.gates import format_number
 
 
 def array_shape(dom, cod):
@@ -147,17 +148,87 @@ class Add(Gate):
 
 
 def nadd(dom):
+    """
+    Create the NADD gate which corresponds to the Add gate followed by
+    Neg applied to the least significant qudit.
+    """
     dom = _box_type(dom, exp_size=2)
+    if dom[0] <= 2:
+        return Add(dom)
     return Add(dom) >> (Id(dom[1]) @ Neg(dom[0]))
 
 
-def cup(dom):
-    dom = _box_type(dom, exp_size=2)
-    return Box.cups(Qudit(dom[0]), Qudit(dom[1]))
+def cups(t):
+    """
+    Nested CUPS.
+    :param t: Leg type.
+    """
+    t = _box_type(t)
+    return Box.cups(t, t)
 
 
-def cap(cod):
-    return cup(cod).dagger()
+def caps(t):
+    return cups(t).dagger()
+
+
+def trace(circuit):
+    if not isinstance(circuit, Circuit):
+        raise ValueError(f'Expected type Circuit, found {type(circuit)}')
+    if circuit.dom != circuit.cod:
+        raise ValueError('Expected circuit.dom == circuit.cod')
+
+    while True:
+        if len(circuit.dom) == 0:
+            return circuit
+        t1, t2 = circuit.dom[:1], circuit.dom[1:]
+        circuit = (caps(t1) @ Id(t2)) >> (Id(t1) @ circuit) >> (cups(t1) @ Id(t2))
+
+
+class Parametrized(Box):
+    """
+    Abstract class for parametrized boxes in a quantum circuit.
+    """
+    def __init__(self, name, dom, cod, data=None, **params):
+        self._datatype = params.get('datatype', None)
+        data = data\
+            if getattr(data, "free_symbols", False) else self._datatype(data)
+        self.drawing_name = '{}({})'.format(name, data)
+        Box.__init__(self, name, dom, cod, data=data,
+                     _dagger=params.get('_dagger', False))
+
+    def subs(self, *args):
+        return type(self)(super().subs(*args).data)
+
+    @property
+    def name(self):
+        return '{}({})'.format(self._name, format_number(self.data))
+
+    def __repr__(self):
+        return self.name
+
+
+class Scalar(Parametrized):
+    """ Scalar, i.e. quantum gate with empty domain and codomain. """
+    def __init__(self, data, datatype=complex, name=None):
+        self.drawing_name = format_number(data)
+        name = "scalar" if name is None else name
+        dom, cod = ScalarType, ScalarType
+        _dagger = None if data.conjugate() == data else False
+        super().__init__(name, dom, cod,
+                         datatype=datatype, data=data, _dagger=_dagger)
+
+    @property
+    def array(self):
+        return [self.data]
+
+    def grad(self, var):
+        if var not in self.free_symbols:
+            return Sum([], self.dom, self.cod)
+        return Scalar(self.array[0].diff(var))
+
+    def dagger(self):
+        return self if self._dagger is None\
+            else Scalar(self.array[0].conjugate())
 
 
 SINGLE_QUDIT_GATE_CLASSES = [X, Z, H, Neg]

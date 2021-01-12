@@ -4,6 +4,7 @@ from discopy.quanthd.gates import SINGLE_QUDIT_GATE_CLASSES
 import discopy.quantum.gates as qugates
 import numpy as np
 from functools import reduce
+import itertools
 
 
 def _assert_norm_0(m):
@@ -50,7 +51,7 @@ def test_basic_identities():
         _assert_op_is_iden(_op_pow(X(d), d))    # X**d=I
         _assert_op_is_iden(_op_pow(Z(d), d))    # Z**d=I
         _assert_op_is_iden(_op_pow(Neg(d), 2))  # Neg**2=I
-        # HXH^H=Z
+        # Similarity of operators X and Z: HXH^H=Z
         _assert_op_is_iden(H(d) >> X(d) >> H(d).dagger() >> Z(d).dagger())
         # HZH^H=X
         # _assert_op_is_iden(H(d) >> Z(d) >> H(d).dagger() >> X(d).dagger())
@@ -105,3 +106,31 @@ def test_add():
 
         # NADD self-inverse
         _assert_op_is_iden(_op_pow(nadd(d), 2), force_square_mat=True)
+
+
+def test_cups_caps():
+    for d in range(2, 7):
+        # Circle
+        _assert_norm_0(complex((caps(d) >> cups(d)).eval().array) - d)
+
+    for d, k in itertools.product(range(2, 5), range(1, 4)):
+        # Multiple circles
+        t = Qudit(d)**k
+        c = Circuit.caps(t, t) >> Circuit.cups(t, t)
+        _assert_norm_0(complex(c.eval().array) - d**k)
+
+    for d in range(2, 7):
+        # Yanking equations
+        _assert_op_is_iden((Id(d) @ caps(d)) >> (cups(d) @ Id(d)))
+        _assert_op_is_iden((caps(d) @ Id(d)) >> (Id(d) @ cups(d)))
+
+
+def test_trace():
+    for d in range(2, 7):
+        _assert_norm_0(complex(trace(Id(d)).eval().array) - d)
+
+    for d in range(2, 7):
+        # X's matrix is a permutation matrix which has always 0 fixed
+        # points => trace(X) = 0
+        _assert_norm_0(complex(trace(X(d)).eval().array))
+        _assert_norm_0(complex(trace(X(d) @ X(d)).eval().array))
