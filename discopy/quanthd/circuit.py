@@ -42,13 +42,15 @@ class Circuit(tensor.Diagram):
     
     @staticmethod
     def cups(left, right):
-        from discopy.quanthd import nadd, H, Bra
+        from discopy.quanthd import nadd, H, Bra, Scalar
 
         def cup_factory(left, right):
             if left != right or not isinstance(left, Qudit):
                 raise ValueError()
+            assert len(left) == 1
             d = left[0]
-            return nadd(d) >> H(d) @ Id(d) >> Bra(0, 0, dom=Qudit(d, d)) # TODO mul by sqrt(d)
+            return (H(d) @ Id(d) >> nadd(d)).dagger() \
+                >> Bra(0, 0, dom=Qudit(d, d)) @ Scalar(d**.5)
         return rigid.cups(left, right, ar_factory=Circuit, cup_factory=cup_factory)
 
     @staticmethod
