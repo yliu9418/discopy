@@ -171,17 +171,30 @@ def caps(t):
     return cups(t).dagger()
 
 
+def copy(t):
+    """
+    The copy dot.
+    :param t: Leg type.
+    """
+    t = _box_type(t, exp_size=1)
+    return (Id(t) @ Ket(0, cod=t)) >> Add(t @ t)
+
+
+def plus(t):
+    """
+    The plus dot.
+    :param t: Leg type.
+    """
+    t = _box_type(t, exp_size=1)
+    return ((Ket(0, cod=t) >> H(t)) @ Id(t)) >> nadd(t)
+
+
 def trace(circuit):
     if not isinstance(circuit, Circuit):
         raise ValueError(f'Expected type Circuit, found {type(circuit)}')
     if circuit.dom != circuit.cod:
         raise ValueError('Expected circuit.dom == circuit.cod')
-
-    while True:
-        if len(circuit.dom) == 0:
-            return circuit
-        t1, t2 = circuit.dom[:1], circuit.dom[1:]
-        circuit = (caps(t1) @ Id(t2)) >> (Id(t1) @ circuit) >> (cups(t1) @ Id(t2))
+    return caps(circuit.dom) >> (Id(circuit.dom) @ circuit) >> cups(circuit.dom)
 
 
 class Parametrized(Box):

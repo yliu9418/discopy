@@ -3,6 +3,7 @@ from discopy.quanthd import *
 from discopy.quanthd.gates import SINGLE_QUDIT_GATE_CLASSES
 import discopy.quantum.gates as qugates
 import numpy as np
+import sympy as sy
 from functools import reduce
 import itertools
 
@@ -83,8 +84,8 @@ def test_braket():
             assert Ket(i, cod=d) == Bra(i, dom=d).dagger()
 
     for d in range(2, 9):
-        m = (Ket(0, cod=d) >> H(d)).eval().array
-        _assert_norm_0(m*(d/np.sqrt(d)) - np.ones(d))
+        m = (Ket(0, cod=d) >> H(d) @ Scalar(sy.sqrt(d))).eval().array
+        _assert_norm_0(m - np.ones(d))
 
 
 def test_add():
@@ -134,3 +135,14 @@ def test_trace():
         # points => trace(X) = 0
         _assert_norm_0(complex(trace(X(d)).eval().array))
         _assert_norm_0(complex(trace(X(d) @ X(d)).eval().array))
+
+
+def test_copy_plus():
+    for d in range(2, 3):
+        # FIXME d > 2
+        # Pruning elements for copy dot
+        t = Qudit(d)
+        sqrt_d_x_0 = Scalar(sy.sqrt(d)) @ Ket(0, cod=t) >> H(t)
+        _assert_eval_op_diff_0(sqrt_d_x_0 >> copy(t), caps(t))
+        _assert_eval_op_diff_0(copy(t) >> (sqrt_d_x_0.dagger() @ Id(t)), Id(t))
+        _assert_eval_op_diff_0(copy(t) >> (Id(t) @ sqrt_d_x_0.dagger()), Id(t))
