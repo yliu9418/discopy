@@ -688,22 +688,18 @@ class Swap(Box):
 
 class Sum(cat.Sum, Box):
     """ Sum of monoidal diagrams. """
-    @staticmethod
-    def upgrade(old):
-        if not isinstance(old, cat.Sum):
-            raise TypeError(messages.type_err(cat.Sum, old))
-        return Sum(old.terms, old.dom, old.cod)
-
     def tensor(self, *others):
         if len(others) != 1:
             return super().tensor(*others)
-        other = others[0] if isinstance(others[0], Sum) else Sum(others)
-        unit = Sum([], self.dom @ other.dom, self.cod @ other.cod)
+        other = others[0] if isinstance(others[0], Sum) else type(self)(others)
+        unit = type(self)([], self.dom @ other.dom, self.cod @ other.cod)
         terms = [f.tensor(g) for f in self.terms for g in other.terms]
-        return self.upgrade(sum(terms, unit))
+        return sum(terms, unit)
 
     def draw(self, **params):
         """ Drawing a sum as an equation with :code:`symbol='+'`. """
+        if not self.terms:
+            return Box(str(self), self.dom, self.cod).draw(**params)
         return drawing.equation(*self.terms, symbol='+', **params)
 
 
@@ -732,7 +728,7 @@ class Bubble(cat.Bubble, Box):
     """
     def __init__(self, inside, dom=None, cod=None, **params):
         self.drawing_name = params.get("drawing_name", "")
-        cat.Bubble.__init__(self, inside, dom, cod)
+        cat.Bubble.__init__(self, inside, dom, cod, data=params.get("data"))
         Box.__init__(self, self._name, self.dom, self.cod, data=self.data)
 
     def downgrade(self):

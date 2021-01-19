@@ -12,10 +12,15 @@ Implements dagger monoidal functors into tensors.
 """
 
 from discopy import messages, monoidal, rigid, config
-from discopy.cat import AxiomError
+from discopy.cat import AxiomError, recursive_subs
 from discopy.monoidal import Sum
 from discopy.rigid import Ob, Ty, Cup, Cap
 
+
+FUNCTIONS = {
+    "negation": lambda x: int(not x),
+    "ReLU": lambda x: max(x, 0)
+}
 
 if config.IMPORT_JAX:  # pragma: no cover
     import warnings
@@ -272,7 +277,9 @@ class Functor(rigid.Functor):
 
     def __call__(self, diagram):
         if isinstance(diagram, Bubble):
-            return self(diagram.inside).map(diagram.func)
+            func = FUNCTIONS[diagram.func] if isinstance(diagram.func, str)\
+                else diagram.func
+            return self(diagram.inside).map(func)
         if isinstance(diagram, monoidal.Sum):
             dom, cod = self(diagram.dom), self(diagram.cod)
             return sum(map(self, diagram), Tensor.zeros(dom, cod))
@@ -479,12 +486,18 @@ class Box(rigid.Box, Diagram):
         return np.array(self.data).reshape(self.dom @ self.cod or (1, ))
 
     def grad(self, var):
+        if var not in self.free_symbols:
+            return self.sum([], self.dom, self.cod)
         return self.bubble(
             func=lambda x: getattr(x, "diff", lambda _: 0)(var),
             drawing_name="d${}$".format(var))
 
+    def subs(self, *args):
+        return Box(
+            self.name, self.dom, self.cod, recursive_subs(self.data, *args))
+
     def __repr__(self):
-        return super().__repr__().replace("Box", "tensor.Box")
+        return super().__repr__()
 
     def __eq__(self, other):
         if not isinstance(other, Box):
@@ -586,9 +599,16 @@ class Bubble(monoidal.Bubble, Box):
     .. image:: ../_static/imgs/tensor/product-rule.png
         :align: center
     """
-    def __init__(self, inside, func=lambda x: int(not x), **params):
-        self.func = func
-        super().__init__(inside, **params)
+    def __init__(self, inside, dom=None, cod=None, func="negation", **params):
+        super().__init__(inside, data=func, **params)
+
+    @property
+    def func(self):
+        """ The data of a tensor.Bubble is a function. """
+        return self.data
+
+    def subs(self, *args):
+        return Bubble(self.inside.subs(*args), func=self.func)
 
     def grad(self, var):
         """

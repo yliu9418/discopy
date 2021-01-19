@@ -214,6 +214,29 @@ def test_tikz_eggs():
         >> merge(white) @ merge(yolk)
 
 
+def test_draw_empty_sum():
+    import io
+    from contextlib import redirect_stdout
+    f = io.StringIO()
+    with redirect_stdout(f):
+        Sum([], Ty(), Ty()).draw(to_tikz=True)
+    assert f.getvalue() ==\
+        "\\begin{tikzpicture}[baseline=(0.base)]\n"\
+        "\\begin{pgfonlayer}{nodelayer}\n"\
+        "\\node (0) at (0, 0.5) {};\n"\
+        "\\node [] (1) at (-0.25, -0.25) {};\n"\
+        "\\node [] (2) at (0.25, -0.25) {};\n"\
+        "\\node [] (3) at (0.25, 0.25) {};\n"\
+        "\\node [] (4) at (-0.25, 0.25) {};\n"\
+        "\\node [style=none] (5) at (0, 0.0) {Sum([], Ty(), Ty())};\n"\
+        "\\end{pgfonlayer}\n"\
+        "\\begin{pgfonlayer}{edgelayer}\n"\
+        "\\draw [-, fill={white}] (1.center) to (2.center) "\
+        "to (3.center) to (4.center) to (1.center);\n"\
+        "\\end{pgfonlayer}\n"\
+        "\\end{tikzpicture}"
+
+
 def test_Node_repr():
     assert repr(Node('dom', depth=1, i=0, obj=Ob('x')))\
         == "Node('dom', depth=1, i=0, obj=Ob('x'))"

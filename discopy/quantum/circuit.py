@@ -548,10 +548,6 @@ class Box(rigid.Box, Circuit):
 
 class Sum(monoidal.Sum, Box):
     """ Sums of circuits. """
-    @staticmethod
-    def upgrade(old):
-        return Sum(old.terms, old.dom, old.cod)
-
     @property
     def is_mixed(self):
         return any(circuit.is_mixed for circuit in self.terms)

@@ -151,10 +151,14 @@ def test_Diagram_cups_and_caps():
 
 
 def test_Box():
-    f = Box('f', Dim(2), Dim(2), [0, 1, 1, 0])
-    assert repr(f) == "tensor.Box('f', Dim(2), Dim(2), data=[0, 1, 1, 0])"
-    assert f != rigid.Box('f', Dim(2), Dim(2), data=[0, 1, 1, 0])
+    from sympy.abc import x
+    f = Box('f', Dim(2), Dim(2), [0, 1, 1, x])
+    assert repr(f) == "Box('f', Dim(2), Dim(2), data=[0, 1, 1, x])"
+    assert f != rigid.Box('f', Dim(2), Dim(2), data=[0, 1, 1, x])
     assert {f: 42}[f] == 42
+    assert f.bubble().subs(x, 1) == f.subs(x, 1).bubble()
+    assert not f.subs(x, 1).grad(x)
+
 
 
 def test_Spider():

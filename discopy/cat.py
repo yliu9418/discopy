@@ -577,10 +577,6 @@ class Sum(Box):
 
     A diagram is different from the sum of itself, i.e. :code:`Sum([f]) != f`
     """
-    @staticmethod
-    def upgrade(old):
-        return old
-
     def __init__(self, terms, dom=None, cod=None):
         self.terms = list(terms)
         if not terms:
@@ -635,31 +631,48 @@ class Sum(Box):
     def then(self, *others):
         if len(others) != 1:
             return super().then(*others)
-        other = others[0] if isinstance(others[0], Sum) else Sum(list(others))
-        unit = Sum([], self.dom, other.cod)
+        other = others[0] if isinstance(others[0], Sum) else type(self)(others)
+        unit = type(self)([], self.dom, other.cod)
         terms = [f.then(g) for f in self.terms for g in other.terms]
-        return self.upgrade(sum(terms, unit))
+        return sum(terms, unit)
 
     def dagger(self):
-        unit = Sum([], self.cod, self.dom)
-        return self.upgrade(sum([f.dagger() for f in self.terms], unit))
+        unit = type(self)([], self.cod, self.dom)
+        return sum([f.dagger() for f in self.terms], unit)
 
     def subs(self, *args):
-        unit = Sum([], self.dom, self.cod)
-        return self.upgrade(sum([f.subs(*args) for f in self.terms], unit))
+        unit = type(self)([], self.dom, self.cod)
+        return sum([f.subs(*args) for f in self.terms], unit)
 
 
 class Bubble(Box):
     """ A unary operator on homsets. """
-    def __init__(self, inside, dom=None, cod=None):
+    def __init__(self, inside, dom=None, cod=None, **params):
+        self._inside = inside
         dom = inside.dom if dom is None else dom
         cod = inside.cod if cod is None else cod
-        super().__init__("Bubble", dom, cod, data=inside)
+        Box.__init__(self, "Bubble", dom, cod, **params)
 
     @property
     def inside(self):
-        """ The diagram inside a bubble. """
-        return self.data
+        """ The inside of a bubble, i.e. the diagram to which it applies. """
+        return self._inside
+
+    @property
+    def free_symbols(self):
+        return self.inside.free_symbols
+
+    def subs(self, *args):
+        return type(self)(self.inside.subs(*args), dom=self.dom, cod=self.cod)
+
+    def __eq__(self, other):
+        if isinstance(other, Bubble):
+            attr = ['_name', '_dom', '_cod', '_data', '_dagger', '_inside']
+            return all(getattr(self, x) == getattr(other, x) for x in attr)
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return hash(tuple("Bubble", self.inside))
 
     def __str__(self):
         return "({}).bubble({})".format(
