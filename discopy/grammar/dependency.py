@@ -27,38 +27,36 @@ import spacy
 from discopy import Diagram, Functor, Cap, Box, Id, Ty, Word
 from discopy.grammar import eager_parse
 
-spacy_types = [
-Ty('ADJ'),
-Ty('ADP'),
-Ty('ADV'),
-Ty('AUX'),
-Ty('CONJ'),
-Ty('DET'),
-Ty('INTJ'),
-Ty('NOUN'),
-Ty('NUM'),
-Ty('PART'),
-Ty('PRON'),
-Ty('PROPN'),
-Ty('PUNCT'),
-Ty('SCONJ'),
-Ty('SYM'),
-Ty('VERB'),
-Ty('X'),
-Ty('SPACE'),
-Ty('CCONJ')
-]
+spacy_types = [Ty('ADJ'),
+               Ty('ADP'),
+               Ty('ADV'),
+               Ty('AUX'),
+               Ty('CONJ'),
+               Ty('DET'),
+               Ty('INTJ'),
+               Ty('NOUN'),
+               Ty('NUM'),
+               Ty('PART'),
+               Ty('PRON'),
+               Ty('PROPN'),
+               Ty('PUNCT'),
+               Ty('SCONJ'),
+               Ty('SYM'),
+               Ty('VERB'),
+               Ty('X'),
+               Ty('SPACE'),
+               Ty('CCONJ')]
 
 
-#### - Dependency trees following autonomization construction - ####
+# - Dependency trees following autonomization construction - #
 
 def autonomous_tree(sentence):
     """
     Given a spaCy span object, recursively builds a tree in which the
-    dependency links are encoded in 'leq' boxes, caps and cups. This construction is 
-    useful for keeping track of word order, and objects are limited to 
-    the spaCy part-of-speech tags, as opposed to (spaCy type, dependency)
-    tuples as below.
+    dependency links are encoded in 'leq' boxes, caps and cups. This
+    construction is useful for keeping track of word order, and objects
+    are limited to the spaCy part-of-speech tags, as opposed to
+    (spaCy type, dependency) tuples as below.
 
     With snake removal, a simpler dependency tree can be obtained.
 
@@ -69,9 +67,9 @@ def autonomous_tree(sentence):
     """
 
     add_caps_functor = Functor(ob={ty: ty for ty in spacy_types},
-                                ar=_add_caps_box,
-                                ob_factory=Ty,
-                                ar_factory=Diagram)
+                               ar=_add_caps_box,
+                               ob_factory=Ty,
+                               ar_factory=Diagram)
 
     return add_caps_functor(autonomous_tree_nocaps(sentence))
 
@@ -84,9 +82,10 @@ def autonomous_tree_nocaps(sentence):
     """
 
     # eager_parse to add cups
-    diagram = eager_parse(_autonomous_nocaps_inner(sentence.root), target=Ty(sentence.root.pos_))
+    diagram = eager_parse(_autonomous_nocaps_inner(sentence.root),
+                          target=Ty(sentence.root.pos_))
 
-    return  diagram
+    return diagram
 
 
 def _autonomous_nocaps_inner(token):
@@ -104,7 +103,7 @@ def _autonomous_nocaps_inner(token):
     right_cod = Ty()
     layer = []
 
-    # keep track of number of left dependent subtrees for 'leq' box insertion at end
+    # keep track of number of left dependent subtrees for 'leq' box insertion
     n_lefts = 0
 
     for child in token.lefts:
@@ -118,10 +117,11 @@ def _autonomous_nocaps_inner(token):
     cod = left_cod @ Ty(token.pos_) @ right_cod
 
     # insert 'leq' box between left and right subtrees
-    layer.insert(n_lefts, (Word(token.text, Ty(token.pos_)) >> Box('≤', Ty(token.pos_), cod)))
+    layer.insert(n_lefts,
+                 (Word(token.text, Ty(token.pos_)) >> Box('≤', Ty(token.pos_), cod)))
     # tensor subtrees and 'leq' box together, in correct order
     layer = Id(Ty()).tensor(*layer)
-    
+
     return layer
 
 
@@ -145,7 +145,10 @@ def _add_caps_box(box):
             if not l:
                 l = Cap(Ty(obj.name).r, Ty(obj.name))
             else:
-                l =  l >> Id(box.cod[:i]) @ Cap(Ty(obj.name).r, Ty(obj.name)) @ Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[:i].objects]))
+                l = (l >> Id(box.cod[:i]) @ Cap(Ty(obj.name).r, Ty(obj.name))
+                     @ Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
+                                            for obj in box.cod[:i].objects]))
+                    )
         elif obj.z == 0:
             dom = dom @ Ty(obj.name)
             cod = cod @ Ty(obj.name)
@@ -154,15 +157,24 @@ def _add_caps_box(box):
             rdom = Ty(obj.name) @ rdom
             right = right @ Id(Ty(obj.name).l)
             if not r:
-                r =  Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[i+1:].objects])) @ Id(box.cod[i+1:])\
-                >> Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[i+1:].objects])) @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i+1:])
+                r = (Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
+                                for obj in box.cod[i + 1:].objects]))
+                     @ Id(box.cod[i + 1:]))\
+                >> (Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
+                                for obj in box.cod[i + 1:].objects]))
+                    @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i + 1:]))
             else:
-                r = Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[i+1:].objects])) @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i+1:]) >> r
-    
+                r = (Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
+                                for obj in box.cod[i + 1:].objects]))
+                     @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i + 1:])
+                     >> r)
+
     dom = dom @ rdom
     full = m
-    if l: full = l @ full
-    if r: full = full @ r
+    if l:
+        full = l @ full
+    if r:
+        full = full @ r
     if box.name == '≤':
         full = full >> (left @ Box('≤', dom, cod) @ right)
     else:
@@ -171,7 +183,7 @@ def _add_caps_box(box):
     return full
 
 
-#### - Dependency Trees with objects as (spaCy type, dependency) tuples - ####
+# - Dependency Trees with objects as (spaCy type, dependency) tuples - #
 
 def dependency_tree(token):
     """
@@ -188,25 +200,27 @@ def dependency_tree(token):
         R = sentences[0].root
         dependency_tree(R).draw(figsize=(12,10))
     """
-    
+
     # codomain is the token.dep_
     cod = Ty((token.pos_, token.dep_))
-    
+
     # base case
     if token.n_lefts + token.n_rights == 0:
         return Box(token.text, Ty(), cod)
-    
+
     else:
         # codomain starts as empty type
         dom = Ty()
-        
+
         subdiagram = None
         for child in token.children:
             # build domain from dependent children
             dom = dom @ Ty((child.pos_, child.dep_))
             # build subdiagram recursively
-            if subdiagram is not None: subdiagram = subdiagram @ dependency_tree(child)
-            else: subdiagram = dependency_tree(child)
+            if subdiagram is not None:
+                subdiagram = subdiagram @ dependency_tree(child)
+            else:
+                subdiagram = dependency_tree(child)
 
         # compose this token with the subdiagram
         return subdiagram >> Box(token.text, dom, cod)
@@ -214,54 +228,59 @@ def dependency_tree(token):
 
 def dependency_forest(doc):
     """
-    Splits a spaCy document into sentences, then creates a dependency tree for each sentence.
+    Splits a spaCy document into sentences, then creates
+    a dependency tree for each sentence.
     
     Returns
     -------
     forest : [monoidal.Diagram]
             python list of dependency trees 
     """
-    
+
     # split sentences
     sentences = [s for s in doc.sents]
-    
+
     # get diagrams for each sentence
     forest = [dependency_tree(s.root) for s in sentences]
-    
+
     return forest
 
 
-#### - Alternative Approach to dependency trees (probably less robust) - ####
+# - Alternative Approach to dependency trees (probably less robust) - #
 
 def assign_words(parsing, use_lemmas=False, generic_target=False):
     """
-    Given a parsing of some text (a list of spaCy tokens with punctuation removed), uses
-    the part-of-speech tags and dependency structure to assign codomains to each word.
-    
-    The p-o-s tags constitute a set of basic types, and the codomains of the words are
-    formed from tensor products of these basic types and their adjoints.
+    Given a parsing of some text (a list of spaCy tokens with punctuation
+    removed), uses the part-of-speech tags and dependency structure to assign
+    codomains to each word.
+
+    The p-o-s tags constitute a set of basic types,
+    and the codomains of the words are formed from tensor products
+    of these basic types and their adjoints.
     
     Parameters
     ----------
-    
+
     use_lemmas : bool
-        use lemmas for names of the Word boxes e.g. 'loves' becomes Word('love', type)
-        this is useful for simplifying a functor from sentence to circuit (we have less
-        less words to specify the image of in the arrow mapping)
-        
+        use lemmas for names of the Word boxes e.g. 'loves' becomes
+        Word('love', type) this is useful for simplifying a functor from
+        sentence to circuit (we have less words to specify the image of
+        in the arrow mapping)
+
     generic_target : bool
-        If True, a token with the 'ROOT' dependency tag will end up with a generic 's' type
-        in its codomain, which may be useful in distinguishing it as a 'semantic output'.
+        If True, a token with the 'ROOT' dependency tag will end up with
+        a generic 's' type in its codomain, which may be useful in
+        distinguishing it as a 'semantic output'.
     """
-    
+
     # a list of words and a set of basic types for this parsing
     words = []
     types = set()
     # target type for eager_parse
     target_type = Ty('s')
-    
+
     for token in parsing:
-        
+
         # initial codomain
         if token.dep_ == "ROOT":
             ty = target_type = Ty('s') if generic_target else Ty(token.pos_)
@@ -272,53 +291,61 @@ def assign_words(parsing, use_lemmas=False, generic_target=False):
 
         # scan dependency tree and tensor codomain with appropriate left/right adjoints
         if token.n_lefts:
-            lefts  = [Ty(token.pos_) for token in token.lefts if token in parsing]
+            lefts = [Ty(token.pos_)\
+                for token in token.lefts if token in parsing]
             if len(lefts):
-                ty = functools.reduce(lambda x,y: x @ y, lefts).r @ ty
+                ty = functools.reduce(lambda x, y: x @ y, lefts).r @ ty
 
         if token.n_rights:
-            rights = [Ty(token.pos_) for token in token.rights if token in parsing]
-            if len(rights): ty = ty @ functools.reduce(lambda x,y: x @ y, rights).l
+            rights = [Ty(token.pos_)\
+                for token in token.rights if token in parsing]
+            if len(rights):
+                ty = ty @ functools.reduce(lambda x, y: x @ y, rights).l
 
         # add Word to list of Words in this parsing
         words.append(Word(token.lemma_ if use_lemmas else token.text, ty))
-    
+
     return words, types, target_type
 
 
 def sentence_to_diagram(parsing, **kwargs):
     """
-    Takes a parsing of a sentence, assigns words to the tokens in the parsing, infers
-    a set of basic types, and uses discopy's eager_parse to try and guess a diagram.
+    Takes a parsing of a sentence, assigns words to the tokens in the parsing,
+    infers a set of basic types, and uses discopy's eager_parse
+    to try and guess a diagram.
     """
-    
+
     words, types, target = assign_words(parsing, **kwargs)
-    
+
     try:
         diagram = eager_parse(*words, target=target)
-    except:
+    except NotImplementedError:
         # this avoids an error if one of the sentences cannot be diagram-ed in
         # 'document_to_diagrams'
         print(f"Could not infer diagram from spaCy's tags: {parsing}")
         return None
-    
+
     return diagram, types
 
 
 def document_to_diagrams(doc, drop_stop=False, **kwargs):
     """
-    Splits a document into sentences, and tries to create diagrams for each sentence,
-    and a creates a set of all the basic types that were inferred from the document.
+    Splits a document into sentences, and tries to create diagrams for each
+    sentence, and a creates a set of all the basic types that were inferred
+    from the document.
 
     Drops punctuation, and stop words if drop_stop=True.
     """
-    
+
     # split sentences and parse
     sentences = [s for s in doc.sents]
-    sentence_parsings = [[token for token in s if (token.pos != spacy.symbols.PUNCT) and not (drop_stop and token.is_stop)] for s in sentences]
-    
-    # get diagrams for each sentence and a set of basic types for the whole document
-    diagrams, types = map(list,zip(*[sentence_to_diagram(parsing, **kwargs) for parsing in sentence_parsings]))
-    types = functools.reduce(lambda x,y: x.union(y), types)
-    
+    sentence_parsings = [[token\
+        for token in s if (token.pos != spacy.symbols.PUNCT)\
+            and not (drop_stop and token.is_stop)] for s in sentences]
+
+    # diagrams for each sentence and set of basic types for the whole document
+    diagrams, types = map(list, zip(*[sentence_to_diagram(parsing, **kwargs)\
+        for parsing in sentence_parsings]))
+    types = functools.reduce(lambda x, y: x.union(y), types)
+
     return diagrams, types
