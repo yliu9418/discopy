@@ -118,7 +118,8 @@ def _autonomous_nocaps_inner(token):
 
     # insert 'leq' box between left and right subtrees
     layer.insert(n_lefts,
-                 (Word(token.text, Ty(token.pos_)) >> Box('≤', Ty(token.pos_), cod)))
+                 (Word(token.text, Ty(token.pos_))
+                  >> Box('≤', Ty(token.pos_), cod)))
     # tensor subtrees and 'leq' box together, in correct order
     layer = Id(Ty()).tensor(*layer)
 
@@ -146,9 +147,9 @@ def _add_caps_box(box):
                 l = Cap(Ty(obj.name).r, Ty(obj.name))
             else:
                 l = (l >> Id(box.cod[:i]) @ Cap(Ty(obj.name).r, Ty(obj.name))
-                     @ Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
-                                            for obj in box.cod[:i].objects]))
-                    )
+                     @ Id(Ty()).tensor(
+                         *reversed([Id(Ty(obj.name))
+                                    for obj in box.cod[:i].objects])))
         elif obj.z == 0:
             dom = dom @ Ty(obj.name)
             cod = cod @ Ty(obj.name)
@@ -157,15 +158,19 @@ def _add_caps_box(box):
             rdom = Ty(obj.name) @ rdom
             right = right @ Id(Ty(obj.name).l)
             if not r:
-                r = (Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
-                                for obj in box.cod[i + 1:].objects]))
+                r = (Id(Ty()).tensor(
+                        *reversed([Id(Ty(obj.name))
+                                   for obj in box.cod[i + 1:].objects]))
                      @ Id(box.cod[i + 1:]))\
-                >> (Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
-                                for obj in box.cod[i + 1:].objects]))
-                    @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i + 1:]))
+                     >> (Id(Ty()).tensor(
+                        *reversed([Id(Ty(obj.name))
+                                   for obj in box.cod[i + 1:].objects]))
+                         @ Cap(Ty(obj.name), Ty(obj.name).l)
+                         @ Id(box.cod[i + 1:]))
             else:
-                r = (Id(Ty()).tensor(*reversed([Id(Ty(obj.name))\
-                                for obj in box.cod[i + 1:].objects]))
+                r = (Id(Ty()).tensor(
+                        *reversed([Id(Ty(obj.name))
+                                   for obj in box.cod[i + 1:].objects]))
                      @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i + 1:])
                      >> r)
 
@@ -230,11 +235,11 @@ def dependency_forest(doc):
     """
     Splits a spaCy document into sentences, then creates
     a dependency tree for each sentence.
-    
+
     Returns
     -------
     forest : [monoidal.Diagram]
-            python list of dependency trees 
+            python list of dependency trees
     """
 
     # split sentences
@@ -257,7 +262,7 @@ def assign_words(parsing, use_lemmas=False, generic_target=False):
     The p-o-s tags constitute a set of basic types,
     and the codomains of the words are formed from tensor products
     of these basic types and their adjoints.
-    
+
     Parameters
     ----------
 
@@ -289,16 +294,16 @@ def assign_words(parsing, use_lemmas=False, generic_target=False):
         # add to set of basic types (does nothing if type already in set)
         types.add(ty)
 
-        # scan dependency tree and tensor codomain with appropriate left/right adjoints
+        # scan dependency tree, tensor codomain with appropriate adjoints
         if token.n_lefts:
-            lefts = [Ty(token.pos_)\
-                for token in token.lefts if token in parsing]
+            lefts = [Ty(token.pos_)
+                     for token in token.lefts if token in parsing]
             if len(lefts):
                 ty = functools.reduce(lambda x, y: x @ y, lefts).r @ ty
 
         if token.n_rights:
-            rights = [Ty(token.pos_)\
-                for token in token.rights if token in parsing]
+            rights = [Ty(token.pos_)
+                      for token in token.rights if token in parsing]
             if len(rights):
                 ty = ty @ functools.reduce(lambda x, y: x @ y, rights).l
 
@@ -339,12 +344,13 @@ def document_to_diagrams(doc, drop_stop=False, **kwargs):
 
     # split sentences and parse
     sentences = [s for s in doc.sents]
-    sentence_parsings = [[token\
-        for token in s if (token.pos != spacy.symbols.PUNCT)\
-            and not (drop_stop and token.is_stop)] for s in sentences]
+    sentence_parsings = [[
+        token for token in s if (token.pos != spacy.symbols.PUNCT)
+        and not (drop_stop and token.is_stop)] for s in sentences]
 
     # diagrams for each sentence and set of basic types for the whole document
-    diagrams, types = map(list, zip(*[sentence_to_diagram(parsing, **kwargs)\
+    diagrams, types = map(list, zip(
+        *[sentence_to_diagram(parsing, **kwargs)
         for parsing in sentence_parsings]))
     types = functools.reduce(lambda x, y: x.union(y), types)
 
