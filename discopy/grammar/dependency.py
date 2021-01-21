@@ -16,7 +16,7 @@ Then load it within python as follows::
 or::
     python -m spacy download fr_core_news_sm
 ::
-    nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.load("fr_core_news_sm")
     doc = nlp("Le renard brun et agile a sauté par dessus le chien parasseux.")
 """
 
@@ -24,15 +24,160 @@ import functools
 
 import spacy
 
-from discopy import Box, Ty, Word
+from discopy import Diagram, Functor, Cap, Box, Id, Ty, Word
 from discopy.grammar import eager_parse
 
+spacy_types = [
+Ty('ADJ'),
+Ty('ADP'),
+Ty('ADV'),
+Ty('AUX'),
+Ty('CONJ'),
+Ty('DET'),
+Ty('INTJ'),
+Ty('NOUN'),
+Ty('NUM'),
+Ty('PART'),
+Ty('PRON'),
+Ty('PROPN'),
+Ty('PUNCT'),
+Ty('SCONJ'),
+Ty('SYM'),
+Ty('VERB'),
+Ty('X'),
+Ty('SPACE'),
+Ty('CCONJ')
+]
+
+
+#### - Dependency trees following autonomization construction - ####
+
+def autonomous_tree(sentence):
+    """
+    Given a spaCy span object, recursively builds a tree in which the
+    dependency links are encoded in 'leq' boxes, caps and cups. This construction is 
+    useful for keeping track of word order, and objects are limited to 
+    the spaCy part-of-speech tags, as opposed to (spaCy type, dependency)
+    tuples as below.
+
+    With snake removal, a simpler dependency tree can be obtained.
+
+    example::
+        diagram = autonomous_tree(sentence)
+        diagram.draw()
+        diagram.normal_form().draw()
+    """
+
+    add_caps_functor = Functor(ob={ty: ty for ty in spacy_types},
+                                ar=_add_caps_box,
+                                ob_factory=Ty,
+                                ar_factory=Diagram)
+
+    return add_caps_functor(autonomous_tree_nocaps(sentence))
+
+
+def autonomous_tree_nocaps(sentence):
+    """
+    Helper function for autonomous_tree. Creates dependency tree
+    without caps, which can then be mapped to one with caps using
+    a functor, so that snake removal can be performed.
+    """
+
+    # eager_parse to add cups
+    diagram = eager_parse(_autonomous_nocaps_inner(sentence.root), target=Ty(sentence.root.pos_))
+
+    return  diagram
+
+
+def _autonomous_nocaps_inner(token):
+    """
+    Recursive function to build tree without cups, used in
+    autonomous_tree_nocaps.
+    """
+
+    # base case
+    if token.n_lefts + token.n_rights == 0:
+        return Word(token.text, Ty(token.pos_))
+
+    # else build left and right dependent subtrees
+    left_cod = Ty()
+    right_cod = Ty()
+    layer = []
+
+    # keep track of number of left dependent subtrees for 'leq' box insertion at end
+    n_lefts = 0
+
+    for child in token.lefts:
+        layer.append(_autonomous_nocaps_inner(child))
+        n_lefts += 1
+        left_cod = Ty(child.pos_).r @ left_cod
+    for child in token.rights:
+        layer.append(_autonomous_nocaps_inner(child))
+        right_cod = Ty(child.pos_).l @ right_cod
+
+    cod = left_cod @ Ty(token.pos_) @ right_cod
+
+    # insert 'leq' box between left and right subtrees
+    layer.insert(n_lefts, (Word(token.text, Ty(token.pos_)) >> Box('≤', Ty(token.pos_), cod)))
+    # tensor subtrees and 'leq' box together, in correct order
+    layer = Id(Ty()).tensor(*layer)
+    
+    return layer
+
+
+def _add_caps_box(box):
+    """
+    Arrow mapping for the 'add caps' functor.
+    """
+
+    left = Id(Ty())
+    right = Id(Ty())
+    dom = Ty()
+    rdom = Ty()
+    cod = Ty()
+    l = None
+    m = Id(Ty())
+    r = None
+    for i, obj in enumerate(box.cod):
+        if obj.z == 1:
+            dom = Ty(obj.name) @ dom
+            left = left @ Id(Ty(obj.name).r)
+            if not l:
+                l = Cap(Ty(obj.name).r, Ty(obj.name))
+            else:
+                l =  l >> Id(box.cod[:i]) @ Cap(Ty(obj.name).r, Ty(obj.name)) @ Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[:i].objects]))
+        elif obj.z == 0:
+            dom = dom @ Ty(obj.name)
+            cod = cod @ Ty(obj.name)
+            m = m @ Id(Ty(obj.name))
+        elif obj.z == -1:
+            rdom = Ty(obj.name) @ rdom
+            right = right @ Id(Ty(obj.name).l)
+            if not r:
+                r =  Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[i+1:].objects])) @ Id(box.cod[i+1:])\
+                >> Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[i+1:].objects])) @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i+1:])
+            else:
+                r = Id(Ty()).tensor(*reversed([Id(Ty(obj.name)) for obj in box.cod[i+1:].objects])) @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i+1:]) >> r
+    
+    dom = dom @ rdom
+    full = m
+    if l: full = l @ full
+    if r: full = full @ r
+    if box.name == '≤':
+        full = full >> (left @ Box('≤', dom, cod) @ right)
+    else:
+        full = box >> full
+
+    return full
+
+
+#### - Dependency Trees with objects as (spaCy type, dependency) tuples - ####
 
 def dependency_tree(token):
     """
     Given a spaCy token, recursively builds a dependency tree from its
     dependent children. This can be applied to the 'ROOT' token of a spaCy
-    span object to create a dependency diagram for an entire 'semantic chunk'.
+    span object to create a dependency tree for an entire 'semantic chunk'.
 
     The objects of the diagram are tuples (part-of-speech, dependency) where
     dependency it the dependency of the token on its parent in the dependency
@@ -86,7 +231,7 @@ def dependency_forest(doc):
     return forest
 
 
-#### - Alternative Approach (probably less robust) - ####
+#### - Alternative Approach to dependency trees (probably less robust) - ####
 
 def assign_words(parsing, use_lemmas=False, generic_target=False):
     """
