@@ -170,7 +170,7 @@ def _add_caps_box(box):
             else:
                 r = (Id(Ty()).tensor(
                      *reversed([Id(Ty(obj.name))
-                                   for obj in box.cod[i + 1:].objects]))
+                                for obj in box.cod[i + 1:].objects]))
                      @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i + 1:])
                      >> r)
 
