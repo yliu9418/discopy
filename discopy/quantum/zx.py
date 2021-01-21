@@ -2,12 +2,13 @@
 
 """ Implements ZX diagrams. """
 
-from discopy import messages, monoidal, rigid, quantum, tensor
+from discopy import messages, cat, monoidal, rigid, quantum, tensor
 from discopy.monoidal import Sum
 from discopy.rigid import Functor, PRO
 from discopy.quantum.circuit import Circuit, qubit
 from discopy.quantum.gates import (
-    Bra, Ket, Rz, Rx, CX, CZ, CRz, CRx, format_number)
+    Bra, Ket, Rz, Rx, Ry, CX, CZ, CRz, CRx, format_number)
+from discopy.quantum.gates import Scalar as GatesScalar
 from math import pi
 
 
@@ -109,6 +110,8 @@ class Diagram(tensor.Diagram):
             elif isinstance(box, Swap):
                 scan = scan[:offset] + [scan[offset + 1], scan[offset]]\
                     + scan[offset + 2:]
+            elif isinstance(box, Scalar):
+                graph.scalar.add_float(box.data)
             elif box == H:
                 node, hadamard = scan[offset]
                 scan[offset] = (node, not hadamard)
@@ -280,8 +283,8 @@ class Spider(Box):
         return type(self)(len(self.cod), len(self.dom), -self.phase)
 
     def subs(self, *args):
-        return type(self)(len(self.dom), len(self.cod),
-                          phase=super().subs(*args).data)
+        data = cat.recursive_subs(self.data, *args)
+        return type(self)(len(self.dom), len(self.cod), phase=data)
 
     def grad(self, var):
         if var not in self.free_symbols:
@@ -345,7 +348,8 @@ class Scalar(Box):
         return self.name
 
     def subs(self, *args):
-        return Scalar(super().subs(*args).data)
+        data = cat.recursive_subs(self.data, *args)
+        return Scalar(data)
 
     def dagger(self):
         return Scalar(self.data.conjugate())
@@ -365,8 +369,8 @@ def gate2zx(box):
     """ Turns gates into ZX diagrams. """
     if isinstance(box, (Bra, Ket)):
         dom, cod = (1, 0) if isinstance(box, Bra) else (0, 1)
-        return Id(0).tensor(*[
-            X(dom, cod, phase=.5 * bit) for bit in box.bitstring])
+        spiders = [X(dom, cod, phase=.5 * bit) for bit in box.bitstring]
+        return Id(0).tensor(*spiders) @ scalar(pow(2, -len(box.bitstring) / 2))
     if isinstance(box, (Rz, Rx)):
         return (Z if isinstance(box, Rz) else X)(1, 1, box.phase)
     if isinstance(box, CRz):
@@ -378,11 +382,15 @@ def gate2zx(box):
     if isinstance(box, quantum.CU1):
         return Z(1, 2, box.phase) @ Z(1, 2, box.phase)\
             >> Id(1) @ (X(2, 1) >> Z(1, 0, -box.phase)) @ Id(1)
+    if isinstance(box, GatesScalar):
+        if box.is_mixed:
+            raise NotImplementedError
+        return scalar(box.data)
     standard_gates = {
         quantum.H: H,
         quantum.Z: Z(1, 1, .5),
         quantum.X: X(1, 1, .5),
-        quantum.Y: Y(1, 1, .5),
+        quantum.Y: Z(1, 1, .5) >> X(1, 1, .5) @ scalar(1j),
         CZ: Z(1, 2) @ Id(1) >> Id(1) @ Had() @ Id(1) >> Id(1) @ Z(2, 1),
         CX: Z(1, 2) @ Id(1) >> Id(1) @ X(2, 1)}
     return standard_gates[box]

@@ -3,9 +3,9 @@
 """ Gates in a :class:`discopy.quantum.circuit.Circuit`. """
 
 from collections.abc import Callable
-from discopy.cat import AxiomError
+from discopy.cat import AxiomError, recursive_subs
 from discopy.tensor import np, Dim, Tensor
-from discopy.quantum.circuit import bit, qubit, Box, Swap, Sum
+from discopy.quantum.circuit import bit, qubit, Box, Swap, Sum, Id
 
 
 def format_number(data):
@@ -102,8 +102,8 @@ class ClassicalGate(Box):
             _dagger=None if self._dagger is None else not self._dagger)
 
     def subs(self, *args):
-        return ClassicalGate(
-            self.name, len(self.cod), len(self.dom), super().subs(*args).data)
+        data = recursive_subs(self.data, *args)
+        return ClassicalGate(self.name, len(self.cod), len(self.dom), data)
 
     def grad(self, var):
         if var not in self.free_symbols:
@@ -241,7 +241,8 @@ class Parametrized(Box):
             self._cos, self._sin = np.cos, np.sin
 
     def subs(self, *args):
-        return type(self)(super().subs(*args).data)
+        data = recursive_subs(self.data, *args)
+        return type(self)(data)
 
     @property
     def name(self):
@@ -298,7 +299,24 @@ class Rz(Rotation):
     def array(self):
         half_theta = self._pi * self.phase
         return np.array(
-            [[self._exp(-1j * half_theta), 0], [0, self._exp(1j * half_theta)]])
+            [[self._exp(-1j * half_theta), 0],
+             [0, self._exp(1j * half_theta)]])
+
+
+class Ry(Rotation):
+    """ Y rotations. """
+    def __init__(self, phase):
+        super().__init__(phase, name="Ry")
+
+    @property
+    def array(self):
+        half_theta = self._pi * self.phase
+        sin, cos = self._sin(half_theta), self._cos(half_theta)
+        return np.array([[cos, -1 * sin], [sin, cos]])
+
+
+def _outer_prod_diag(*bitstring):
+    return Bra(*bitstring) >> Ket(*bitstring)
 
 
 class CU1(Rotation):
@@ -314,6 +332,15 @@ class CU1(Rotation):
                          0, 0, 1, 0,
                          0, 0, 0, self._exp(1j * theta)])
 
+    def grad(self, var):
+        if var not in self.free_symbols:
+            return Sum([], self.dom, self.cod)
+        gradient = self.phase.diff(var)
+        gradient = complex(gradient) if not gradient.free_symbols else gradient
+        _i_2_pi = 1j * 2 * self._pi
+        return _outer_prod_diag(1, 1) @ scalar(
+            _i_2_pi * gradient * self._exp(_i_2_pi * self.phase))
+
 
 class CRz(Rotation):
     """ Controlled Z rotations. """
@@ -327,6 +354,18 @@ class CRz(Rotation):
                          0, 1, 0, 0,
                          0, 0, self._exp(-1j * half_theta), 0,
                          0, 0, 0, self._exp(1j * half_theta)])
+
+    def grad(self, var):
+        if var not in self.free_symbols:
+            return Sum([], self.dom, self.cod)
+        gradient = self.phase.diff(var)
+        gradient = complex(gradient) if not gradient.free_symbols else gradient
+
+        _i_half_pi = .5j * self._pi
+        op1 = Z @ Z @ scalar(_i_half_pi * gradient)
+        op2 = Id(qubit) @ Z @ scalar(-_i_half_pi * gradient)
+
+        return self >> (op1 + op2)
 
 
 class CRx(Rotation):
@@ -342,6 +381,18 @@ class CRx(Rotation):
                          0, 1, 0, 0,
                          0, 0, cos, -1j * sin,
                          0, 0, -1j * sin, cos])
+
+    def grad(self, var):
+        if var not in self.free_symbols:
+            return Sum([], self.dom, self.cod)
+        gradient = self.phase.diff(var)
+        gradient = complex(gradient) if not gradient.free_symbols else gradient
+
+        _i_half_pi = .5j * self._pi
+        op1 = Z @ X @ scalar(_i_half_pi * gradient)
+        op2 = Id(qubit) @ X @ scalar(-_i_half_pi * gradient)
+
+        return self >> (op1 + op2)
 
 
 class Scalar(Parametrized):
