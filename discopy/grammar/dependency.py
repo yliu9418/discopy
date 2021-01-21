@@ -159,17 +159,17 @@ def _add_caps_box(box):
             right = right @ Id(Ty(obj.name).l)
             if not r:
                 r = (Id(Ty()).tensor(
-                        *reversed([Id(Ty(obj.name))
-                                   for obj in box.cod[i + 1:].objects]))
+                     *reversed([Id(Ty(obj.name))
+                                for obj in box.cod[i + 1:].objects]))
                      @ Id(box.cod[i + 1:]))\
-                     >> (Id(Ty()).tensor(
+                    >> (Id(Ty()).tensor(
                         *reversed([Id(Ty(obj.name))
                                    for obj in box.cod[i + 1:].objects]))
-                         @ Cap(Ty(obj.name), Ty(obj.name).l)
-                         @ Id(box.cod[i + 1:]))
+                        @ Cap(Ty(obj.name), Ty(obj.name).l)
+                        @ Id(box.cod[i + 1:]))
             else:
                 r = (Id(Ty()).tensor(
-                        *reversed([Id(Ty(obj.name))
+                     *reversed([Id(Ty(obj.name))
                                    for obj in box.cod[i + 1:].objects]))
                      @ Cap(Ty(obj.name), Ty(obj.name).l) @ Id(box.cod[i + 1:])
                      >> r)
@@ -351,7 +351,7 @@ def document_to_diagrams(doc, drop_stop=False, **kwargs):
     # diagrams for each sentence and set of basic types for the whole document
     diagrams, types = map(list, zip(
         *[sentence_to_diagram(parsing, **kwargs)
-        for parsing in sentence_parsings]))
+          for parsing in sentence_parsings]))
     types = functools.reduce(lambda x, y: x.union(y), types)
 
     return diagrams, types
