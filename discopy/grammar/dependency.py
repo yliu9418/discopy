@@ -11,21 +11,20 @@ In short, download the language model you would like::
 
 Then load it within python as follows::
     nlp = spacy.load("en_core_web_sm")
-    doc = nlp("The quick brown fox jumped over the lazy dog.")
+    doc = nlp("The quick brown fox jumps over the lazy dog.")
 
 or::
     python -m spacy download fr_core_news_sm
 ::
     nlp = spacy.load("fr_core_news_sm")
-    doc = nlp("Le renard brun et agile a sauté par dessus le chien parasseux.")
+    doc = nlp("Le renard brun et agile saute par dessus le chien parasseux.")
 """
 
 import functools
 
 import spacy
 
-from discopy import Diagram, Functor, Cap, Box, Id, Ty, Word
-from discopy.grammar import eager_parse
+from discopy import Diagram, Functor, Cap, Cup, Box, Id, Ty, Word
 
 spacy_types = [Ty('ADJ'),
                Ty('ADP'),
@@ -71,59 +70,71 @@ def autonomous_tree(sentence):
                                ob_factory=Ty,
                                ar_factory=Diagram)
 
-    return add_caps_functor(autonomous_tree_nocaps(sentence))
+    return add_caps_functor(autonomous_tree_nocaps(sentence.root))
 
 
-def autonomous_tree_nocaps(sentence):
+def autonomous_tree_nocaps(token):
     """
     Helper function for autonomous_tree. Creates dependency tree
     without caps, which can then be mapped to one with caps using
     a functor, so that snake removal can be performed.
     """
 
-    # eager_parse to add cups
-    diagram = eager_parse(_autonomous_nocaps_inner(sentence.root),
-                          target=Ty(sentence.root.pos_))
-
-    return diagram
-
-
-def _autonomous_nocaps_inner(token):
-    """
-    Recursive function to build tree without cups, used in
-    autonomous_tree_nocaps.
-    """
-
-    # base case
+    # recursion - base case
     if token.n_lefts + token.n_rights == 0:
         return Word(token.text, Ty(token.pos_))
 
-    # else build left and right dependent subtrees
-    left_cod = Ty()
-    right_cod = Ty()
-    layer = []
+    # recursion - self-reference
+    # top layer - word, box and subtree
+    left_cod = [Ty(l.pos_).r for l in token.lefts]
+    left_cod.reverse()
+    right_cod = [Ty(r.pos_).l for r in token.rights]
+    right_cod.reverse()
 
-    # keep track of number of left dependent subtrees for 'leq' box insertion
-    n_lefts = 0
+    cod = left_cod + [Ty(token.pos_)] + right_cod
+    cod = Ty().tensor(*cod)
 
-    for child in token.lefts:
-        layer.append(_autonomous_nocaps_inner(child))
-        n_lefts += 1
-        left_cod = Ty(child.pos_).r @ left_cod
-    for child in token.rights:
-        layer.append(_autonomous_nocaps_inner(child))
-        right_cod = Ty(child.pos_).l @ right_cod
+    left_label = ", ".join([l.pos_ for l in token.lefts])
+    right_label = ", ".join([r.pos_ for r in token.rights])
 
-    cod = left_cod @ Ty(token.pos_) @ right_cod
+    label = f"{token.pos_}({left_label} * {right_label})"
+    box = Box(label, Ty(token.pos_), cod)
 
-    # insert 'leq' box between left and right subtrees
-    layer.insert(n_lefts,
-                 (Word(token.text, Ty(token.pos_))
-                  >> Box('≤', Ty(token.pos_), cod)))
-    # tensor subtrees and 'leq' box together, in correct order
-    layer = Id(Ty()).tensor(*layer)
+    top_layer = Word(token.text, Ty(token.pos_)) >> box
 
-    return layer
+    # subtree
+    left_subtree = Id(Ty()).tensor(
+        *[autonomous_tree_nocaps(l) for l in token.lefts])
+    right_subtree = Id(Ty()).tensor(
+        *[autonomous_tree_nocaps(r) for r in token.rights])
+
+    top_layer = left_subtree @ top_layer @ right_subtree
+
+    # bottom layer - cups and one Id
+    left_cups = [Cup(l.l, l) for l in reversed(left_cod)]
+    right_cups = [Cup(r, r.r) for r in right_cod]
+
+    bottom_left = Id(Ty())
+    left_wires = Id(Ty())
+    right_wires = Id(Ty())
+    for cup in left_cups:
+        new = left_wires @ cup @ right_wires
+        bottom_left = new >> bottom_left
+        left_wires = left_wires @ Id(Ty(cup.dom[0]))
+        right_wires = Id(Ty(cup.dom[1])) @ right_wires
+
+    bottom_right = Id(Ty())
+    left_wires = Id(Ty())
+    right_wires = Id(Ty())
+    for cup in right_cups:
+        new = left_wires @ cup @ right_wires
+        bottom_right = new >> bottom_right
+        left_wires = left_wires @ Id(Ty(cup.dom[0]))
+        right_wires = Id(Ty(cup.dom[1])) @ right_wires
+
+    bottom_layer = bottom_left @ Id(Ty(token.pos_)) @ bottom_right
+
+    return top_layer >> bottom_layer
 
 
 def _add_caps_box(box):
@@ -180,8 +191,8 @@ def _add_caps_box(box):
         full = l @ full
     if r:
         full = full @ r
-    if box.name == '≤':
-        full = full >> (left @ Box('≤', dom, cod) @ right)
+    if box.dom != Ty():
+        full = full >> (left @ Box(box.name, dom, cod) @ right)
     else:
         full = box >> full
 
