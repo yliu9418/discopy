@@ -26,26 +26,6 @@ import spacy
 
 from discopy import Diagram, Functor, Cap, Cup, Box, Id, Ty, Word
 
-spacy_types = [Ty('ADJ'),
-               Ty('ADP'),
-               Ty('ADV'),
-               Ty('AUX'),
-               Ty('CONJ'),
-               Ty('DET'),
-               Ty('INTJ'),
-               Ty('NOUN'),
-               Ty('NUM'),
-               Ty('PART'),
-               Ty('PRON'),
-               Ty('PROPN'),
-               Ty('PUNCT'),
-               Ty('SCONJ'),
-               Ty('SYM'),
-               Ty('VERB'),
-               Ty('X'),
-               Ty('SPACE'),
-               Ty('CCONJ')]
-
 
 # - Dependency trees following autonomization construction - #
 
@@ -65,7 +45,8 @@ def autonomous_tree(sentence):
         diagram.normal_form().draw()
     """
 
-    add_caps_functor = Functor(ob={ty: ty for ty in spacy_types},
+    add_caps_functor = Functor(ob={Ty(token.pos_): Ty(token.pos_)
+                                   for token in sentence},
                                ar=_add_caps_box,
                                ob_factory=Ty,
                                ar_factory=Diagram)
