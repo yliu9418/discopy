@@ -40,8 +40,7 @@ def _e_k(n, k):
 
 
 def _braket_array(*string, type_):
-    if not isinstance(type_, Qudit):
-        raise TypeError(messages.type_err(Qudit, type_))
+    type_ = _box_type(type_)
     if len(string) != len(type_):
         raise ValueError('Mismatching string and type lengths')
     tensor = Tensor.id(Dim(1)).tensor(*(

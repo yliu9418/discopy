@@ -4,32 +4,49 @@ Implementation of the high-dimensional quantum circuits.
 
 from discopy import messages, monoidal, rigid, tensor
 from discopy.cat import AxiomError
-from discopy.rigid import Ob, Ty, Diagram
+from discopy.rigid import Ob, Diagram   # TODO Review here
 from discopy.tensor import np, Dim, Tensor
+from discopy.quantum import Qudit, Ty
+
+
+def _get_qudit(obj):
+    if hasattr(obj, 'objects'):
+        obj = obj.objects
+        if len(obj) != 1:
+            raise ValueError()  # TODO Error spec
+        obj = obj[0]
+    if not isinstance(obj, Qudit):
+        raise TypeError(messages.type_err(Qudit, type(obj)))
+    return obj
+
+
+def _get_qudits(objs):
+    """
+    Standardize and check type for qudit objects.
+    >>> _get_qudits(Qudit(2)) == Ty(Qudit(2))
+    >>> _get_qudits(Ty(Qudit(2))) == Ty(Qudit(2))
+    >>> _get_qudits(Ty(Qudit(2), Qudit(3))) == Ty(Qudit(2), Qudit(3))
+    """
+    # TODO instead of hasattr be more type specific
+    objs = objs.objects if hasattr(objs, 'objects') else [objs]
+    for obj in objs:
+        if not isinstance(obj, Qudit):
+            raise TypeError(messages.type_err(Qudit, type(obj)))
+    return Ty(*objs)
 
 
 def _box_type(t, *, exp_size=None, min_dim=2):
     n = 1 if not exp_size else exp_size
     t = Qudit(*(t, )*n) if isinstance(t, int) else t
-    if not isinstance(t, Qudit):
-        raise TypeError(messages.type_err(Qudit, type_))
-    if exp_size and len(t)!=exp_size:
+    t = _get_qudits(t)
+    if exp_size and len(t) != exp_size:
         raise ValueError(f'Expected {exp_size} qudits in {t}, found {len(t)}')
-    if min_dim and np.any(np.array(t, dtype=np.int) < min_dim):
+    if min_dim and np.any(np.array(list(map(lambda obj: obj.dim, t))) < min_dim):
         raise ValueError(f'Dimension less than the expected {min_dim}')
     return t
 
 
-class Qudit(Dim):
-    @staticmethod
-    def upgrade(old):
-        return Qudit(*[x.name for x in old.objects])
-
-    def __repr__(self):
-        return "Qudit({})".format(', '.join(map(repr, self)) or '1')
-
-
-ScalarType = Qudit(1)
+ScalarType = Ty(Qudit(1))   # TODO Use a common type
 
 
 @monoidal.Diagram.subclass
@@ -45,13 +62,13 @@ class Circuit(tensor.Diagram):
         from discopy.quanthd import nadd, H, Bra, Scalar
 
         def cup_factory(left, right):
+            left, right = map(_get_qudit, (left, right))
             if left != right or not isinstance(left, Qudit):
                 raise ValueError()
-            assert len(left) == 1
-            d = left[0]
+            d = left.dim
             return (H(d) @ Id(d) >> nadd(d)).dagger() \
-                >> Bra(0, 0, dom=Qudit(d, d)) @ Scalar(d**.5)
-        return rigid.cups(left, right, ar_factory=Circuit, cup_factory=cup_factory)
+                >> Bra(0, 0, dom=Ty(left, left)) @ Scalar(d**.5)
+        return rigid.cups(Ty(left), Ty(right), ar_factory=Circuit, cup_factory=cup_factory)
 
     @staticmethod
     def caps(left, right):
