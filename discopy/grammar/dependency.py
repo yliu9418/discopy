@@ -78,7 +78,7 @@ def autonomous_tree_nocaps(token):
     left_label = ", ".join([l.pos_ for l in token.lefts])
     right_label = ", ".join([r.pos_ for r in token.rights])
 
-    label = f"{token.pos_}({left_label} * {right_label})"
+    label = f"{token.pos_}({left_label}, *, {right_label})"
     box = Box(label, Ty(token.pos_), cod)
 
     top_layer = Word(token.text, Ty(token.pos_)) >> box
