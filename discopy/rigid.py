@@ -249,6 +249,14 @@ class Diagram(monoidal.Diagram):
         return Id(diagram.dom[:-n_wires]) @ Diagram.caps(wires, wires.l)\
             >> diagram @ Id(wires.l)
 
+    @staticmethod
+    def planar_bx(diagram1, diagram2, compose):
+        """ Rewrite cross composition diagram. """
+        d1_left, d1_right = compose, diagram1.cod[len(compose):]
+        d2_left, d2_right = compose.r, diagram2.cod[len(compose):]
+        return diagram1 >> Id(d1_left) @ diagram2 @ Id(d1_right) >>\
+            Diagram.cups(d1_left, d2_left) @ Id(d2_right) @ Id(d1_right)
+
     def transpose(self, left=False):
         """
         >>> a, b = Ty('a'), Ty('b')

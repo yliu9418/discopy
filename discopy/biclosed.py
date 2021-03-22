@@ -118,6 +118,11 @@ class Diagram(monoidal.Diagram):
         """ Diagram currying. """
         return Curry(diagram, n_wires, left)
 
+    @staticmethod
+    def planar_bx(diagram1, diagram2):
+        """ Backward crossed composition. """
+        return PlanarBX(diagram1, diagram2)
+
 
 class Id(monoidal.Id, Diagram):
     """ Identity diagram in a biclosed monoidal category. """
@@ -238,6 +243,29 @@ class BX(Box):
         super().__init__(name, dom, cod)
 
 
+class PlanarBX(Box):
+    """
+    Perform crossed composition on two diagrams. This will yield a planar
+    rigid diagram when `biclosed2rigid` functor is applied to it.
+    """
+    def __init__(self, diagram1, diagram2):
+        if len(diagram2.dom) > 0:
+            raise Exception("The domain of diagram2 must be Ty().")
+
+        left, right = diagram1.cod, diagram2.cod
+        if not isinstance(left, Over):
+            raise TypeError(messages.type_err(Under, left))
+        if not isinstance(right, Under):
+            raise TypeError(messages.type_err(Under, right))
+        if left.left != right.left:
+            raise TypeError(messages.does_not_compose(left, right))
+        name = "PlanarBX({}, {})".format(diagram1, diagram2)
+        dom, cod = diagram1.dom, right.right << left.right
+        self.diagram1, self.diagram2 = diagram1, diagram2
+        self.compose = left.left
+        super().__init__(name, dom, cod)
+
+
 class Functor(monoidal.Functor):
     """
     Functors into biclosed monoidal categories.
@@ -290,6 +318,12 @@ class Functor(monoidal.Functor):
             middle = diagram.dom[:1].left
             return getattr(self.ar_factory, 'bx')(
                 self(left), self(middle), self(right))
+        if isinstance(diagram, PlanarBX):
+            diagram1, diagram2 = diagram.diagram1, diagram.diagram2
+            compose = diagram.compose
+            return getattr(self.ar_factory, 'planar_bx')(
+                self(diagram1), self(diagram2), self(compose))
+
         return super().__call__(diagram)
 
 
