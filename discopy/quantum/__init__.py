@@ -5,7 +5,7 @@
 from discopy.quantum import cqmap, circuit, gates, zx
 from discopy.quantum.cqmap import C, Q, CQ, CQMap
 from discopy.quantum.circuit import (
-    bit, qubit, Digit, Qudit, Circuit, Id, Box, Sum, Swap,
+    bit, qubit, qudit, Digit, Qudit, Circuit, Id, Box, Sum, Swap,
     Functor as CircuitFunctor,
     Discard, MixedState, Measure, Encode, IQPansatz, random_tiling,
     real_amp_ansatz)

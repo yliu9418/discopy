@@ -1,9 +1,10 @@
 from discopy import messages
 from discopy.cat import AxiomError
-from discopy.tensor import np, Dim, Tensor
+from discopy.tensor import Dim, Tensor
 from discopy.quanthd.circuit import Qudit, Box, Sum, ScalarType, _box_type
-from discopy.quanthd.circuit import Id, Circuit
+from discopy.quanthd.circuit import Id, Circuit, _get_qudit_dims
 from discopy.quantum.gates import format_number
+import numpy as np
 
 
 def array_shape(dom, cod):
@@ -80,7 +81,7 @@ class X(Gate):
 
     @property
     def array(self):
-        d = self.dom[0]
+        d = _get_qudit_dims(self.dom)[0]
         return np.eye(d)[:, (np.arange(d)+1) % d]
 
 
@@ -92,7 +93,7 @@ class Neg(Gate):
 
     @property
     def array(self):
-        d = self.dom[0]
+        d = _get_qudit_dims(self.dom)[0]
         return np.eye(d)[:, (d - np.arange(d)) % d]
 
     def dagger(self):
@@ -107,7 +108,7 @@ class Z(Gate):
 
     @property
     def array(self):
-        d = self.dom[0]
+        d = _get_qudit_dims(self.dom)[0]
         diag = np.exp(np.arange(d)*2j*np.pi/d)
         return np.diag(diag)
 
@@ -123,7 +124,7 @@ class H(Gate):
 
     @property
     def array(self):
-        d = self.dom[0]
+        d = _get_qudit_dims(self.dom)[0]
         m = (np.arange(d)*2j*np.pi/d)[..., np.newaxis]
         m = m @ np.arange(d)[np.newaxis]
         m = np.exp(m)/np.sqrt(d)
@@ -139,7 +140,7 @@ class Add(Gate):
 
     @property
     def array(self):
-        d = self.dom[0]
+        d = _get_qudit_dims(self.dom)[0]
         p = np.mgrid[:d, :d].reshape((2, -1)).T
         p = np.sum(p, axis=1) % d
         p += np.repeat(np.arange(d)*d, d)

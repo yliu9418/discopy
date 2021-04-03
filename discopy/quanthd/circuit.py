@@ -5,8 +5,10 @@ Implementation of the high-dimensional quantum circuits.
 from discopy import messages, monoidal, rigid, tensor
 from discopy.cat import AxiomError
 from discopy.rigid import Ob, Diagram   # TODO Review here
-from discopy.tensor import np, Dim, Tensor
-from discopy.quantum import Qudit, Ty
+from discopy.tensor import Dim, Tensor
+from discopy.quantum import Qudit, qudit, qubit
+from discopy.rigid import Ty    # TODO Check quantum.Ty
+import numpy as np
 
 
 def _get_qudit(obj):
@@ -16,29 +18,22 @@ def _get_qudit(obj):
             raise ValueError()  # TODO Error spec
         obj = obj[0]
     if not isinstance(obj, Qudit):
-        raise TypeError(messages.type_err(Qudit, type(obj)))
+        raise TypeError(messages.type_err(Qudit, obj))
     return obj
 
 
-def _get_qudits(objs):
-    """
-    Standardize and check type for qudit objects.
-    >>> _get_qudits(Qudit(2)) == Ty(Qudit(2))
-    >>> _get_qudits(Ty(Qudit(2))) == Ty(Qudit(2))
-    >>> _get_qudits(Ty(Qudit(2), Qudit(3))) == Ty(Qudit(2), Qudit(3))
-    """
-    # TODO instead of hasattr be more type specific
-    objs = objs.objects if hasattr(objs, 'objects') else [objs]
-    for obj in objs:
-        if not isinstance(obj, Qudit):
-            raise TypeError(messages.type_err(Qudit, type(obj)))
-    return Ty(*objs)
+def _get_qudit_dims(obj):
+    if hasattr(obj, 'objects'):
+        if not all(map(lambda v: isinstance(v, Qudit), obj.objects)):
+            raise TypeError(messages.type_err(Qudit, None))
+        return tuple(map(lambda v: v.dim, obj.objects))
+    raise TypeError(messages.type_err(type(qudit(2)), obj))
 
 
 def _box_type(t, *, exp_size=None, min_dim=2):
     n = 1 if not exp_size else exp_size
-    t = Qudit(*(t, )*n) if isinstance(t, int) else t
-    t = _get_qudits(t)
+    t = qudit(t) ** n if isinstance(t, int) else t
+    _get_qudit_dims(t)
     if exp_size and len(t) != exp_size:
         raise ValueError(f'Expected {exp_size} qudits in {t}, found {len(t)}')
     if min_dim and np.any(np.array(list(map(lambda obj: obj.dim, t))) < min_dim):
@@ -46,11 +41,15 @@ def _box_type(t, *, exp_size=None, min_dim=2):
     return t
 
 
-ScalarType = Ty(Qudit(1))   # TODO Use a common type
+ScalarType = qubit**0   # TODO Use a common type
 
 
 @monoidal.Diagram.subclass
 class Circuit(tensor.Diagram):
+    def __init__(self, dom, cod, *args, **kwargs):
+        tensor.Diagram.__init__(self, dom, dom, *args, **kwargs)
+        self.id = lambda : Id(dom)
+
     def __repr__(self):
         return super().__repr__().replace('Diagram', 'HDCircuit')
 
@@ -73,6 +72,10 @@ class Circuit(tensor.Diagram):
     @staticmethod
     def caps(left, right):
         return Circuit.cups(left, right).dagger()
+    
+    def eval(self):
+        functor = tensor.Functor(lambda x: x[0].dim, lambda f: f.array)
+        return functor(self)
 
 
 class Id(rigid.Id, Circuit):
@@ -88,7 +91,7 @@ class Id(rigid.Id, Circuit):
         return repr(self)
 
 
-Circuit.id = Id
+# Circuit.id = Id
 
 
 class Box(rigid.Box, Circuit):

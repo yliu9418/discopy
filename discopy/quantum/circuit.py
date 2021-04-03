@@ -154,6 +154,10 @@ class Ty(rigid.Ty):
 bit, qubit = Ty(Digit(2)), Ty(Qudit(2))
 
 
+def qudit(d):
+    return Ty(Qudit(d))
+
+
 @monoidal.Diagram.subclass
 class Circuit(tensor.Diagram):
     """ Classical-quantum circuits. """
