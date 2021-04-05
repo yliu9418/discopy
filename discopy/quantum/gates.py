@@ -5,9 +5,43 @@
 from collections.abc import Callable
 import numpy
 
+from discopy import messages
 from discopy.cat import AxiomError, rsubs
 from discopy.tensor import array2string, Dim, Tensor
 from discopy.quantum.circuit import Digit, Ty, bit, qubit, Box, Swap, Sum, Id
+from discopy.quantum.circuit import Qudit, qudit
+
+
+def _get_qudit(obj):
+    if hasattr(obj, 'objects'):
+        obj = obj.objects
+        if len(obj) != 1:
+            raise ValueError()  # TODO Error spec
+        obj = obj[0]
+    if not isinstance(obj, Qudit):
+        raise TypeError(messages.type_err(Qudit, obj))
+    return obj
+
+
+def _get_qudit_dims(obj):
+    if hasattr(obj, 'objects'):
+        if not all(map(lambda v: isinstance(v, Qudit), obj.objects)):
+            raise TypeError(messages.type_err(Qudit, None))
+        return tuple(map(lambda v: v.dim, obj.objects))
+    raise TypeError(messages.type_err(type(qudit(2)), obj))
+
+
+def _gbox_type(t, *, exp_size=None, min_dim=2):
+    np = numpy
+    n = 1 if not exp_size else exp_size
+    t = qudit(t) ** n if isinstance(t, int) else t
+    t = Ty(t) if isinstance(t, Qudit) else t
+    _get_qudit_dims(t)
+    if exp_size and len(t) != exp_size:
+        raise ValueError(f'Expected {exp_size} qudits in {t}, found {len(t)}')
+    if min_dim and np.any(np.array(list(map(lambda obj: obj.dim, t))) < min_dim):
+        raise ValueError(f'Dimension less than the expected {min_dim}')
+    return t
 
 
 def format_number(data):
@@ -42,6 +76,28 @@ class QuantumGate(Box):
 
     def dagger(self):
         return QuantumGate(
+            self.name, len(self.dom), self.array,
+            _dagger=None if self._dagger is None else not self._dagger)
+
+
+class GeneralizedQuantumGate(Box):
+    def __init__(self, name, dom, data=None, _dagger=False):
+        super().__init__(
+            name, dom, dom, is_mixed=False, data=data, _dagger=_dagger)
+
+    @property
+    def array(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        if self in GATES:
+            return self.name
+        return "GeneralizedQuantumGate({}, dom={}, array={})".format(
+            repr(self.name), repr(self.dom),
+            array2string(self.array.flatten()))
+
+    def dagger(self):
+        return GeneralizedQuantumGate(
             self.name, len(self.dom), self.array,
             _dagger=None if self._dagger is None else not self._dagger)
 
@@ -254,6 +310,56 @@ class Bra(Box):
         return Ket(*self.bitstring)
 
     array = Bits.array
+
+
+def _e_k(n, k):
+    v = [0] * n
+    v[k] = 1
+    return v
+
+
+def _gbraket_array(*string, type_):
+    np = numpy
+    type_ = _get_qudit_dims(type_)
+    if len(string) != len(type_):
+        raise ValueError('Mismatching string and type lengths')
+    tensor = Tensor.id(Dim(1)).tensor(*(
+        Tensor(Dim(1), Dim(n), _e_k(n, k)) for n, k in zip(type_, string)))
+    return np.reshape(tensor.array, tuple(type_) + (1, ))
+
+
+class GKet(Box):
+    def __init__(self, *string, cod):
+        dom, cod = qubit ** 0, _gbox_type(cod)
+        name = "GKet({})".format(', '.join(map(str, string)))    # TODO Include dom
+        super().__init__(name, dom, cod)
+        self._digits = string
+        self.array = _gbraket_array(*string, type_=cod)
+    
+    @property
+    def digits(self):
+        """ The digits of a generalized Ket. """
+        return list(self._digits)
+
+    def dagger(self):
+        return GBra(*self._digits, dom=self.cod)
+
+
+class GBra(Box):
+    def __init__(self, *string, dom):
+        dom, cod = _gbox_type(dom), qubit ** 0
+        name = "GBra({})".format(', '.join(map(str, string)))
+        super().__init__(name, dom, cod)
+        self._digits = string
+        self.array = _gbraket_array(*string, type_=dom).T
+
+    @property
+    def digits(self):
+        """ The digits string of a generalized Bra. """
+        return list(self._digits)
+
+    def dagger(self):
+        return GKet(*self._digits, cod=self.dom)
 
 
 class Controlled(QuantumGate):
@@ -500,6 +606,114 @@ class CRx(Rotation):
         op1 = Z @ X @ scalar(_i_half_pi * gradient)
         op2 = Id(qubit) @ X @ scalar(-_i_half_pi * gradient)
         return self >> (op1 + op2)
+
+
+class GX(GeneralizedQuantumGate):
+    """ Generalized X gate. """
+    def __init__(self, dom):
+        dom = _gbox_type(dom, exp_size=1, min_dim=2)
+        super().__init__(name='X', dom=dom)
+
+    @property
+    def array(self):
+        d = _get_qudit_dims(self.dom)[0]
+        np = numpy
+        return np.eye(d)[:, (np.arange(d)+1) % d]
+
+
+class Neg(GeneralizedQuantumGate):
+    """ Negation gate. """
+    def __init__(self, dom):
+        dom = _gbox_type(dom, exp_size=1, min_dim=2)
+        super().__init__(name='Neg', dom=dom)
+
+    @property
+    def array(self):
+        np = numpy
+        d = _get_qudit_dims(self.dom)[0]
+        return np.eye(d)[:, (d - np.arange(d)) % d]
+
+    def dagger(self):
+        return type(self)(self.dom)
+
+
+class GZ(GeneralizedQuantumGate):
+    """ Generalized Z gate. """
+    def __init__(self, dom):
+        dom = _gbox_type(dom, exp_size=1, min_dim=2)
+        super().__init__(name=f'Z', dom=dom)
+
+    @property
+    def array(self):
+        np = numpy
+        d = _get_qudit_dims(self.dom)[0]
+        diag = np.exp(np.arange(d)*2j*np.pi/d)
+        return np.diag(diag)
+
+
+class GH(GeneralizedQuantumGate):
+    """
+    Discrete Fourier transform gate. Note that in a qubit system this corresponds
+    to the one-qubit Hadamard gate.
+    """
+    def __init__(self, dom):
+        dom = _gbox_type(dom, exp_size=1)
+        super().__init__(name=f'H', dom=dom)
+
+    @property
+    def array(self):
+        np = numpy
+        d = _get_qudit_dims(self.dom)[0]
+        m = (np.arange(d)*2j*np.pi/d)[..., np.newaxis]
+        m = m @ np.arange(d)[np.newaxis]
+        m = np.exp(m)/np.sqrt(d)
+        return m
+
+
+class Add(GeneralizedQuantumGate):
+    def __init__(self, dom):
+        dom = _gbox_type(dom, exp_size=2)
+        if dom[0] != dom[1]:
+            raise ValueError('Qudits expected having same dimension')
+        super().__init__(name=f'Add', dom=dom)
+
+    @property
+    def array(self):
+        np = numpy
+        d = _get_qudit_dims(self.dom)[0]
+        p = np.mgrid[:d, :d].reshape((2, -1)).T
+        p = np.sum(p, axis=1) % d
+        p += np.repeat(np.arange(d)*d, d)
+        return np.eye(len(p))[:, p]
+
+
+def nadd(dom):
+    """
+    Create the NADD gate which corresponds to the Add gate followed by
+    Neg applied to the least significant qudit.
+    """
+    dom = _gbox_type(dom, exp_size=2)
+    if _get_qudit_dims(dom)[0] <= 2:
+        return Add(dom)
+    return Add(dom) >> (Id(Ty(dom[1])) @ Neg(dom[0]))
+
+
+def gcopy(t):
+    """
+    The copy dot.
+    :param t: Leg type.
+    """
+    t = _gbox_type(t, exp_size=1)
+    return (Id(t) @ GKet(0, cod=t)) >> Add(t @ t)
+
+
+def gplus(t):
+    """
+    The plus dot.
+    :param t: Leg type.
+    """
+    t = _gbox_type(t, exp_size=1)
+    return ((GKet(0, cod=t) >> GH(t)) @ Id(t)) >> nadd(t)
 
 
 class Scalar(Parametrized):
