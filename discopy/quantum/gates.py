@@ -81,13 +81,17 @@ class QuantumGate(Box):
 
 
 class GeneralizedQuantumGate(Box):
-    def __init__(self, name, dom, data=None, _dagger=False):
+    def __init__(self, name, dom, array=None, data=None, _dagger=False):
+        if array is not None:
+            shape = _get_qudit_dims(dom)
+            self._array = Tensor.np.array(array).reshape(shape*2)
         super().__init__(
             name, dom, dom, is_mixed=False, data=data, _dagger=_dagger)
 
     @property
     def array(self):
-        raise NotImplementedError
+        """ The array of a quantum gate. """
+        return self._array
 
     def __repr__(self):
         if self in GATES:
@@ -98,7 +102,7 @@ class GeneralizedQuantumGate(Box):
 
     def dagger(self):
         return GeneralizedQuantumGate(
-            self.name, len(self.dom), self.array,
+            self.name, dom=self.dom, array=self.array,
             _dagger=None if self._dagger is None else not self._dagger)
 
 
