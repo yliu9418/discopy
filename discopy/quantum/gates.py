@@ -80,6 +80,35 @@ class QuantumGate(Box):
             _dagger=None if self._dagger is None else not self._dagger)
 
 
+def _gate_pow(gate, times, period=None):
+    """
+    Helper for gate's __pow__.
+
+    Parameters
+    ----------
+    gate : (Generalised)QuantumGate.
+    period : int or None
+        When not None, the minimum integer k such that
+        U^k=I, that is the gate is involutory and k is the
+        minimum exponent that produces the identity.
+
+    """
+    if not isinstance(times, int):
+        raise TypeError(messages.type_err(int, times))
+    dg, times = times < 0, abs(times)
+    if period:
+        period = int(period)
+        assert period > 0
+        times = times % period
+        if period - times < times:
+            dg = not dg
+            times = period - times
+    result = gate.id(gate.dom)
+    for _ in range(times):
+        result = result >> gate
+    return result.dagger() if dg else result
+
+
 class GeneralizedQuantumGate(Box):
     def __init__(self, name, dom, array=None, data=None, _dagger=False):
         if array is not None:
@@ -104,6 +133,9 @@ class GeneralizedQuantumGate(Box):
         return GeneralizedQuantumGate(
             self.name, dom=self.dom, array=self.array,
             _dagger=None if self._dagger is None else not self._dagger)
+
+    def __pow__(self, times):
+        return _gate_pow(self, times)
 
 
 class ClassicalGate(Box):
@@ -624,6 +656,10 @@ class GX(GeneralizedQuantumGate):
         np = numpy
         return np.eye(d)[:, (np.arange(d)+1) % d]
 
+    def __pow__(self, times):
+        d = _get_qudit_dims(self.dom)[0]
+        return _gate_pow(self, times, period=d)
+
 
 class Neg(GeneralizedQuantumGate):
     """ Negation gate. """
@@ -640,6 +676,11 @@ class Neg(GeneralizedQuantumGate):
     def dagger(self):
         return type(self)(self.dom)
 
+    def __pow__(self, times):
+        d = _get_qudit_dims(self.dom)[0]
+        return _gate_pow(self, times,
+                         period=2 if d > 2 else 1)
+
 
 class GZ(GeneralizedQuantumGate):
     """ Generalized Z gate. """
@@ -653,6 +694,10 @@ class GZ(GeneralizedQuantumGate):
         d = _get_qudit_dims(self.dom)[0]
         diag = np.exp(np.arange(d)*2j*np.pi/d)
         return np.diag(diag)
+
+    def __pow__(self, times):
+        d = _get_qudit_dims(self.dom)[0]
+        return _gate_pow(self, times, period=d)
 
 
 class GH(GeneralizedQuantumGate):
@@ -673,6 +718,10 @@ class GH(GeneralizedQuantumGate):
         m = np.exp(m)/np.sqrt(d)
         return m
 
+    def __pow__(self, times):
+        d = _get_qudit_dims(self.dom)[0]
+        return _gate_pow(self, times, period=4 if d > 2 else 2)
+
 
 class Add(GeneralizedQuantumGate):
     def __init__(self, dom):
@@ -689,6 +738,10 @@ class Add(GeneralizedQuantumGate):
         p = np.sum(p, axis=1) % d
         p += np.repeat(np.arange(d)*d, d)
         return np.eye(len(p))[:, p]
+
+    def __pow__(self, times):
+        d = _get_qudit_dims(self.dom)[0]
+        return _gate_pow(self, times, period=d)
 
 
 def nadd(dom):

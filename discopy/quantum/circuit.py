@@ -155,7 +155,19 @@ bit, qubit = Ty(Digit(2)), Ty(Qudit(2))
 
 
 def qudit(d):
-    return Ty(Qudit(d))
+    """
+    Creates the generalised input and output types of :class:`Circuit`.
+
+    Examples
+    --------
+    >>> assert qudit(3) == Ty(Qudit(3))
+    >>> assert qudit(qudit(3)) == qudit(3)
+    >>> assert qubit == qudit(3)
+    >>> assert qudit(3) @ qudit(2) == Ty(Qudit(3), Qudit(2))
+    """
+    if isinstance(d, Qudit):
+        return Ty(d)
+    return Ty(Qudit(int(d)))
 
 
 @monoidal.Diagram.subclass

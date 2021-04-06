@@ -468,3 +468,25 @@ def test_Controlled():
         Controlled(None)
     with raises(NotImplementedError):
         Controlled(X, distance=-1)
+
+
+def test_qudit():
+    assert qubit == qudit(2)
+    for k in (3, 4):
+        assert qudit(k) == Ty(Qudit(k))
+        assert qudit(qudit(k)) == qudit(k)
+        assert qudit(k) @ qudit(2) == Ty(Qudit(k), Qudit(2))
+
+
+def test_generalised_gates():
+    assert Neg(3)**3 == Neg(3)
+    assert Neg(3)**2 == Id(qudit(3))
+    # TODO Possible to flag a morphism to indicate equiv to Id?
+    # assert Neg(2) == Id(qubit)
+    assert Neg(3)**(-1) == Neg(3)
+    assert Neg(3)**(-2) == Id(qudit(3))
+
+    for opf, k in itertools.product((GX, GZ), (3, 4)):
+        assert opf(k)**k == Id(qudit(k))
+        assert opf(k)**(k - 1) == opf(k).dagger()
+        assert opf(k)**(-1) == opf(k).dagger()
