@@ -1,109 +1,11 @@
 # -*- coding: utf-8 -*-
 
-"""
-Hypergraph categories.
-
-Note
-----
-
-**Spiders**
-
-We can check spider fusion, i.e. special commutative Frobenius algebra.
-
->>> x, y, z = types("x y z")
->>> split, merge = Spider(1, 2, x), Spider(2, 1, x)
->>> unit, counit = Spider(0, 1, x), Spider(1, 0, x)
-
-* (Co)commutative (co)monoid:
-
->>> assert unit @ Id(x) >> merge == Id(x) == Id(x) @ unit >> merge
->>> assert merge @ Id(x) >> merge == Id(x) @ merge >> merge
->>> assert Swap(x, x) >> merge == merge
->>> assert split >> counit @ Id(x) == Id(x) == split >> Id(x) @ counit
->>> assert split >> split @ Id(x) == split >> Id(x) @ split
->>> assert split >> Swap(x, x) == split
-
-* Frobenius:
-
->>> assert split @ Id(x) >> Id(x) @ merge\\
-...     == merge >> split\\
-...     == Id(x) @ split >> merge @ Id(x)\\
-...     == Spider(2, 2, x)
-
-* Speciality:
-
->>> assert split >> merge == Spider(1, 1, x) == Id(x)
-
-* Coherence:
-
->>> assert Spider(0, 1, x @ x) == unit @ unit
->>> assert Spider(2, 1, x @ x) == Id(x) @ Swap(x, x) @ Id(x) >> merge @ merge
->>> assert Spider(1, 0, x @ x) == counit @ counit
->>> assert Spider(1, 2, x @ x) == split @ split >> Id(x) @ Swap(x, x) @ Id(x)
-
-**Snakes**
-
-Special commutative Frobenius algebras imply compact-closedness, i.e.
-
-* Snake equations:
-
->>> left_snake = lambda x: Cap(x, x.r) @ Id(x) >> Id(x) @ Cup(x.r, x)
->>> right_snake = lambda x: Id(x) @ Cap(x.r, x) >> Cup(x, x.r) @ Id(x)
->>> assert left_snake(x) == Id(x) == right_snake(x)
->>> assert left_snake(x @ y) == Id(x @ y) == right_snake(x @ y)
-
-* Yanking (a.k.a. Reidemeister move 1):
-
->>> right_loop = lambda x: Id(x) @ Cap(x, x.r)\\
-...     >> Swap(x, x) @ Id(x.r) >> Id(x) @ Cup(x, x.r)
->>> left_loop = lambda x: Cap(x.r, x) @ Id(x)\\
-...     >> Id(x.r) @ Swap(x, x) >> Cup(x.r, x) @ Id(x)
->>> top_loop = lambda x: Cap(x, x.r) >> Swap(x, x.r)
->>> bottom_loop = lambda x: Swap(x, x.r) >> Cup(x.r, x)
->>> reidemeister1 = lambda x:\\
-...     top_loop(x) == Cap(x.r, x) and bottom_loop(x) == Cup(x, x.r)\\
-...     and left_loop(x) == Id(x) == right_loop(x)
->>> assert reidemeister1(x) and reidemeister1(x @ y) and reidemeister1(Ty())
-
-* Coherence:
-
->>> assert Cap(x @ y, y @ x)\\
-...     == Cap(x, x) @ Cap(y, y) >> Id(x) @ Swap(x, y @ y)\\
-...     == Spider(0, 2, x @ y) >> Id(x @ y) @ Swap(x, y)
->>> assert Cap(x, x) >> Cup(x, x) == Spider(0, 0, x)
-
-**Swaps**
-
-We can also check that the axioms for symmetry hold on the nose.
-
-* Involution (a.k.a. Reidemeister move 2):
-
->>> reidermeister2 = lambda x, y: Swap(x, y) >> Swap(y, x) == Id(x @ y)
->>> assert reidermeister2(x, y) and reidermeister2(x @ y, z)
-
-* Yang-Baxter (a.k.a. Reidemeister move 3):
-
->>> left = Swap(x, y) @ Id(z)\\
-...     >> Id(y) @ Swap(x, z)\\
-...     >> Swap(y, z) @ Id(x)
->>> right = Id(x) @ Swap(y, z)\\
-...     >> Swap(x, z) @ Id(y)\\
-...     >> Id(z) @ Swap(x, y)
->>> assert left == right
-
-* Coherence (a.k.a. pentagon equations):
-
->>> assert Swap(x, y @ z) == Swap(x, y) @ Id(z) >> Id(y) @ Swap(x, z)
->>> assert Swap(x @ y, z) == Id(x) @ Swap(y, z) >> Swap(x, z) @ Id(y)
-
-* Naturality:
-
->>> f = Box("f", x, y)
->>> assert f @ Id(z) >> Swap(f.cod, z) == Swap(f.dom, z) >> Id(z) @ f
->>> assert Id(z) @ f >> Swap(z, f.cod) == Swap(z, f.dom) >> f @ Id(z)
-"""
+""" Hypergraph categories. """
 
 import random
+
+from dataclasses import dataclass
+from typing import List
 
 import matplotlib.pyplot as plt
 from networkx import Graph, connected_components, spring_layout, draw_networkx
@@ -246,6 +148,108 @@ class Diagram(cat.Arrow):
 
     >>> assert (f @ g).n_spiders == 4
     >>> assert (f @ g).wires == [0, 1, 0, 2, 1, 3, 2, 3]
+
+
+    Note
+    ----
+
+    **Spiders**
+
+    We can check spider fusion, i.e. special commutative Frobenius algebra.
+
+    >>> x, y, z = types("x y z")
+    >>> split, merge = Spider(1, 2, x), Spider(2, 1, x)
+    >>> unit, counit = Spider(0, 1, x), Spider(1, 0, x)
+
+    * (Co)commutative (co)monoid:
+
+    >>> assert unit @ Id(x) >> merge == Id(x) == Id(x) @ unit >> merge
+    >>> assert merge @ Id(x) >> merge == Id(x) @ merge >> merge
+    >>> assert Swap(x, x) >> merge == merge
+    >>> assert split >> counit @ Id(x) == Id(x) == split >> Id(x) @ counit
+    >>> assert split >> split @ Id(x) == split >> Id(x) @ split
+    >>> assert split >> Swap(x, x) == split
+
+    * Frobenius:
+
+    >>> assert split @ Id(x) >> Id(x) @ merge\\
+    ...     == merge >> split\\
+    ...     == Id(x) @ split >> merge @ Id(x)\\
+    ...     == Spider(2, 2, x)
+
+    * Speciality:
+
+    >>> assert split >> merge == Spider(1, 1, x) == Id(x)
+
+    * Coherence:
+
+    >>> assert Spider(0, 1, x @ x) == unit @ unit
+    >>> assert Spider(2, 1, x @ x)\\
+    ...     == Id(x) @ Swap(x, x) @ Id(x) >> merge @ merge
+    >>> assert Spider(1, 0, x @ x) == counit @ counit
+    >>> assert Spider(1, 2, x @ x)\\
+    ...     == split @ split >> Id(x) @ Swap(x, x) @ Id(x)
+
+    **Snakes**
+
+    Special commutative Frobenius algebras imply compact-closedness, i.e.
+
+    * Snake equations:
+
+    >>> left_snake = lambda x: Cap(x, x.r) @ Id(x) >> Id(x) @ Cup(x.r, x)
+    >>> right_snake = lambda x: Id(x) @ Cap(x.r, x) >> Cup(x, x.r) @ Id(x)
+    >>> assert left_snake(x) == Id(x) == right_snake(x)
+    >>> assert left_snake(x @ y) == Id(x @ y) == right_snake(x @ y)
+
+    * Yanking (a.k.a. Reidemeister move 1):
+
+    >>> right_loop = lambda x: Id(x) @ Cap(x, x.r)\\
+    ...     >> Swap(x, x) @ Id(x.r) >> Id(x) @ Cup(x, x.r)
+    >>> left_loop = lambda x: Cap(x.r, x) @ Id(x)\\
+    ...     >> Id(x.r) @ Swap(x, x) >> Cup(x.r, x) @ Id(x)
+    >>> top_loop = lambda x: Cap(x, x.r) >> Swap(x, x.r)
+    >>> bottom_loop = lambda x: Swap(x, x.r) >> Cup(x.r, x)
+    >>> reidemeister1 = lambda x:\\
+    ...     top_loop(x) == Cap(x.r, x) and bottom_loop(x) == Cup(x, x.r)\\
+    ...     and left_loop(x) == Id(x) == right_loop(x)
+    >>> for t in [Ty(), x, x @ y]: assert reidemeister1(t)
+
+    * Coherence:
+
+    >>> assert Cap(x @ y, y @ x)\\
+    ...     == Cap(x, x) @ Cap(y, y) >> Id(x) @ Swap(x, y @ y)\\
+    ...     == Spider(0, 2, x @ y) >> Id(x @ y) @ Swap(x, y)
+    >>> assert Cap(x, x) >> Cup(x, x) == Spider(0, 0, x)
+
+    **Swaps**
+
+    We can also check that the axioms for symmetry hold on the nose.
+
+    * Involution (a.k.a. Reidemeister move 2):
+
+    >>> reidermeister2 = lambda x, y: Swap(x, y) >> Swap(y, x) == Id(x @ y)
+    >>> assert reidermeister2(x, y) and reidermeister2(x @ y, z)
+
+    * Yang-Baxter (a.k.a. Reidemeister move 3):
+
+    >>> left = Swap(x, y) @ Id(z)\\
+    ...     >> Id(y) @ Swap(x, z)\\
+    ...     >> Swap(y, z) @ Id(x)
+    >>> right = Id(x) @ Swap(y, z)\\
+    ...     >> Swap(x, z) @ Id(y)\\
+    ...     >> Id(z) @ Swap(x, y)
+    >>> assert left == right
+
+    * Coherence (a.k.a. pentagon equations):
+
+    >>> assert Swap(x, y @ z) == Swap(x, y) @ Id(z) >> Id(y) @ Swap(x, z)
+    >>> assert Swap(x @ y, z) == Id(x) @ Swap(y, z) >> Swap(x, z) @ Id(y)
+
+    * Naturality:
+
+    >>> f = Box("f", x, y)
+    >>> assert f @ Id(z) >> Swap(f.cod, z) == Swap(f.dom, z) >> Id(z) @ f
+    >>> assert Id(z) @ f >> Swap(z, f.cod) == Swap(z, f.dom) >> f @ Id(z)
     """
     def __init__(self, dom, cod, boxes, wires, spider_types=None):
         super().__init__(dom, cod, boxes, _scan=False)
@@ -416,7 +420,7 @@ class Diagram(cat.Arrow):
         data = list(map(repr, [self.dom, self.cod, self.boxes, self.wires]))
         data += [", spider_types={}".format(
             self.spider_types) if self.scalar_spiders else ""]
-        return "Diagram({}, {}, {}, {}{})".format(*data)
+        return "Diagram({}, {}, {}, wires={}{})".format(*data)
 
     @property
     def is_monogamous(self):
@@ -478,15 +482,21 @@ class Diagram(cat.Arrow):
     @property
     def bijection(self):
         """
-        Bijection between ports.
+        Bijection between ports, raises :code:`ValueError` if not
+        :meth:`is_bijective`.
 
         Examples
         --------
 
         >>> x, y = types("x y")
         >>> f = Box('f', x, y)
-        >>> list(zip(f.wires, f.bijection))
-        [(0, 1), (0, 0), (1, 3), (1, 2)]
+        >>> dict(enumerate(f.bijection))
+        {0: 1, 1: 0, 2: 3, 3: 2}
+        >>> for i, port in enumerate(f.ports): print(i, ':', port)
+        0 : Node('input', i=0, obj=Ob('x'))
+        1 : Node('dom', depth=0, i=0, obj=Ob('x'))
+        2 : Node('cod', depth=0, i=0, obj=Ob('y'))
+        3 : Node('output', i=0, obj=Ob('y'))
         """
         if not self.is_bijective:
             raise ValueError
@@ -844,6 +854,41 @@ class Cap(Diagram):
             raise AxiomError
         wires = list(range(len(left))) + list(reversed(range(len(left))))
         super().__init__(Ty(), left @ right, [], wires)
+
+
+@dataclass
+class Rule:
+    """
+    Rewrite rule for hypergraph diagrams.
+
+    Examples
+    --------
+    >>> x, y = types('x y')
+    >>> f = Box('f', x, y)
+    >>> left, right = f >> Spider(1, 2, y), Spider(1, 2, x) >> f @ f
+    >>> rule = Rule(left, right)
+    """
+    left: Diagram
+    right: Diagram
+
+
+@dataclass
+class Match:
+    """
+    Match of the left handside of a rule in a diagram.
+
+    Examples
+    --------
+    >>> x, y = types('x y')
+    >>> f = Box('f', x, y)
+    >>> left, right = f >> Spider(1, 2, y), Spider(1, 2, x) >> f @ f
+    >>> rule = Rule(left, right)
+    >>> diagram = f @ f >> Spider(1, 2, y @ y)
+    >>> match = Match(diagram, rule, [0, 2])
+    """
+    diagram: Diagram
+    rule: Rule
+    injection: List[int]
 
 
 Diagram.id, Diagram.swap, Diagram.cups, Diagram.caps, Diagram.spiders\

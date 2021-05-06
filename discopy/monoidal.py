@@ -450,6 +450,8 @@ class Diagram(cat.Arrow):
     def __eq__(self, other):
         if not isinstance(other, Diagram):
             return False
+        if isinstance(other, Sum):
+            return len(other.terms) == 1 and other.terms[0] == self
         return all(getattr(self, attr) == getattr(other, attr)
                    for attr in ['dom', 'cod', 'boxes', 'offsets'])
 

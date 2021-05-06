@@ -247,6 +247,8 @@ class Arrow:
     def __eq__(self, other):
         if not isinstance(other, Arrow):
             return False
+        if isinstance(other, Sum):
+            return len(other.terms) == 1 and self == other.terms[0]
         return all(getattr(self, a) == getattr(other, a)
                    for a in ["dom", "cod", "boxes"])
 
@@ -664,6 +666,8 @@ class Sum(Box):
         super().__init__(name, dom, cod)
 
     def __eq__(self, other):
+        if isinstance(other, Arrow):
+            return len(self.terms) == 1 and self.terms[0] == other
         if not isinstance(other, Sum):
             return False
         return (self.dom, self.cod, self.terms)\
