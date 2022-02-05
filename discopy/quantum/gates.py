@@ -573,7 +573,7 @@ class Sqrt(Scalar):
 
     @property
     def array(self):
-        return [self.data ** .5]
+        return Tensor.np.array(self.data ** .5)
 
 
 SWAP = Swap(qubit, qubit)
