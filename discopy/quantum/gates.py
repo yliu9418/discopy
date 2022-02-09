@@ -26,7 +26,8 @@ class QuantumGate(Box):
             self, name, n_qubits, array=None, data=None,
             _dagger=False, _conjugate=False):
         dom = qubit ** n_qubits
-        if array is not None:
+        self._array = array
+        if self._array is not None:
             self._array = Tensor.np.array(array).reshape(
                 2 * n_qubits * (2, ) or (1, ))
         super().__init__(
@@ -50,9 +51,10 @@ class QuantumGate(Box):
         more_info = ", _dagger=True" if self._dagger else ""
         more_info += ", _conjugate=True" if self._conjugate else ""
 
+        array_info = (array2string(self.array.flatten())
+                      if hasattr(self.array, 'flatten') else self.array)
         return ("QuantumGate({}, n_qubits={}, array={}{})").format(
-            repr(self.name), len(self.dom),
-            array2string(self.array.flatten()), more_info)
+            repr(self.name), len(self.dom), array_info, more_info)
 
     def dagger(self):
         dagger = None if self._dagger is None else not self._dagger

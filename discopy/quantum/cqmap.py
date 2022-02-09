@@ -286,7 +286,7 @@ class Functor(rigid.Functor):
         if isinstance(box, (MixedState, Encode)):
             return self(box.dagger()).dagger()
         if isinstance(box, Scalar):
-            scalar = box.array[0] if box.is_mixed else abs(box.array[0]) ** 2
+            scalar = box.array if box.is_mixed else abs(box.array) ** 2
             return CQMap(CQ(), CQ(), scalar)
         if not box.is_mixed and box.classical:
             return CQMap(self(box.dom), self(box.cod), box.array)
