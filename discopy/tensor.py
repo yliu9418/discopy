@@ -459,7 +459,7 @@ class Diagram(rigid.Diagram):
 
         """
         import tensornetwork as tn
-        from discopy.quantum import qubit, bit
+        from discopy.quantum import qubit, bit, ClassicalGate
         # TODO check only qubits and bits
         c_nodes = [tn.Node(Tensor.np.eye(2), 'c_input_{}'.format(i))
                     for i in range(self.dom.count(bit))]
@@ -474,9 +474,8 @@ class Diagram(rigid.Diagram):
         q_scan2 = [n[1] for n in q_nodes2]
         nodes = c_nodes + q_nodes1 + q_nodes2
         for box, layer, offset in zip(self.boxes, self.layers, self.offsets):
-            if box.is_mixed:
-                # TODO
-                node = tn.Node(box.eval().array, 'cq_' + str(box))
+            if box.is_mixed or isinstance(box, ClassicalGate):
+                node = tn.Node(box.eval(mixed=True).array, 'cq_' + str(box))
                 c_dom = box.dom.count(bit)
                 q_dom = box.dom.count(qubit)
                 c_cod = box.cod.count(bit)
