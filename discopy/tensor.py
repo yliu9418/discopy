@@ -462,7 +462,7 @@ class Diagram(rigid.Diagram):
         from discopy.quantum import qubit, bit, ClassicalGate
         # TODO check only qubits and bits
         c_nodes = [tn.Node(Tensor.np.eye(2), 'c_input_{}'.format(i))
-                    for i in range(self.dom.count(bit))]
+                   for i in range(self.dom.count(bit))]
         q_nodes1 = [tn.Node(Tensor.np.eye(2), 'q1_input_{}'.format(i))
                     for i in range(self.dom.count(qubit))]
         q_nodes2 = [tn.Node(Tensor.np.eye(2), 'q2_input_{}'.format(i))
@@ -488,17 +488,20 @@ class Diagram(rigid.Diagram):
                     tn.connect(q_scan1[q_offset + i], node[c_dom + i])
                 for i in range(q_dom):
                     tn.connect(q_scan2[q_offset + i], node[c_dom + q_dom + i])
-                c_edges = node[c_dom + 2 * q_dom : c_dom + 2 * q_dom + c_cod]
-                q_edges1 = node[c_dom + 2 * q_dom + c_cod :: 2]
-                q_edges2 = node[c_dom + 2 * q_dom + c_cod + 1 :: 2]
-                c_scan = c_scan[:c_offset] + c_edges + c_scan[c_offset + c_dom:]
-                q_scan1 = q_scan1[:q_offset] + q_edges1 + q_scan1[q_offset + q_dom:]
-                q_scan2 = q_scan2[:q_offset] + q_edges2 + q_scan2[q_offset + q_dom:]
+                c_edges = node[c_dom + 2 * q_dom:c_dom + 2 * q_dom + c_cod]
+                q_edges1 = node[c_dom + 2 * q_dom + c_cod::2]
+                q_edges2 = node[c_dom + 2 * q_dom + c_cod + 1::2]
+                c_scan = (c_scan[:c_offset] + c_edges
+                          + c_scan[c_offset + c_dom:])
+                q_scan1 = (q_scan1[:q_offset] + q_edges1
+                           + q_scan1[q_offset + q_dom:])
+                q_scan2 = (q_scan2[:q_offset] + q_edges2
+                           + q_scan2[q_offset + q_dom:])
                 nodes.append(node)
             else:
-                utensor = box.array if hasattr(box, 'array') else box.eval().array
+                utensor = (box if hasattr(box, 'array') else box.eval()).array
                 left, _, _ = layer
-                q_offset = left[:offset+1].count(qubit)
+                q_offset = left[:offset + 1].count(qubit)
                 node1 = tn.Node(utensor.conjugate(), 'q1_' + str(box))
                 node2 = tn.Node(utensor, 'q2_' + str(box))
 
@@ -508,8 +511,10 @@ class Diagram(rigid.Diagram):
 
                 edges1 = node1[len(box.dom):]
                 edges2 = node2[len(box.dom):]
-                q_scan1 = q_scan1[:q_offset] + edges1 + q_scan1[q_offset + len(box.dom):]
-                q_scan2 = q_scan2[:q_offset] + edges2 + q_scan2[q_offset + len(box.dom):]
+                q_scan1 = (q_scan1[:q_offset] + edges1
+                           + q_scan1[q_offset + len(box.dom):])
+                q_scan2 = (q_scan2[:q_offset] + edges2
+                           + q_scan2[q_offset + len(box.dom):])
                 nodes.extend([node1, node2])
         outputs = c_scan + q_scan1 + q_scan2
         return nodes, inputs + outputs
@@ -538,8 +543,8 @@ class Diagram(rigid.Diagram):
         """
         import tensornetwork as tn
         nodes = [tn.Node(
-                    Tensor.np.eye(dim._dim if hasattr(dim, '_dim') else dim),
-                    'input_{}'.format(i))
+                 Tensor.np.eye(dim._dim if hasattr(dim, '_dim') else dim),
+                 'input_{}'.format(i))
                  for i, dim in enumerate(self.dom)]
         inputs, scan = [n[0] for n in nodes], [n[1] for n in nodes]
         for box, offset in zip(self.boxes, self.offsets):
