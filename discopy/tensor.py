@@ -684,6 +684,26 @@ class Box(rigid.Box, Diagram):
         dom, cod = self.dom, self.cod
         return Tensor.np.array(self.data).reshape(tuple(dom @ cod) or (1, ))
 
+    def conjugate(self, diagrammatic=True):
+        """
+        Returns the conjugate tensor.Box.
+
+        Parameters
+        ----------
+        diagrammatic : bool, default: True
+            Whether to use the diagrammatic or algebraic conjugate.
+        """
+        name, dom, cod = self.name, self.dom, self.cod
+        if not diagrammatic:
+            return Box(name + '.conjugate()', dom, cod,
+                       Tensor.np.conjugate(self.array))
+        else:  # reverse the wires for both inputs and outputs
+            array = Tensor.np.moveaxis(
+                self.array, range(len(dom @ cod)),
+                [len(dom) - i - 1 for i in range(len(dom @ cod))])
+            return Box(name, dom[::-1], cod[::-1],
+                       Tensor.np.conjugate(array), draw_as_conjugate=True)
+
     def grad(self, var, **params):
         return self.bubble(
             func=lambda x: getattr(x, "diff", lambda _: 0)(var),
