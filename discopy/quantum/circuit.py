@@ -601,6 +601,60 @@ class Circuit(tensor.Diagram):
         ds = p1 >> Circuit.tensor(*[d] * len(dim)) >> p2
         return ds
 
+    def undouble(self):
+        """
+        Takes a circuit, returns the underlying tensor.Diagram.
+
+        >>> from discopy.quantum.gates import CX, H, Rz, Rx, Copy
+        >>> import numpy as np
+        >>> c = H @ CX @ Rz(0.4) >> CX @ CX >> Rx(0.3) @ CX @ H >> Measure(4)
+        >>> assert np.allclose(c.eval(mixed=True).array,
+        ...                    c.undouble().eval().array)
+        """
+        def gate_to_tbox(gate):
+            from discopy.quantum.gates import (ClassicalGate, QuantumGate,
+                                               SWAP, Copy, Match)
+            import numpy as np
+            ob = {bit: Dim(2), qubit: Dim(2)}
+            ar = lambda f: tensor.Box(f.name, F(f.dom), F(f.cod),
+                                      f.array)
+            F = rigid.Functor(ob, ar, ob_factory=Dim,
+                              ar_factory=tensor.Diagram)
+            if isinstance(gate, ClassicalGate):
+                if isinstance(gate, Copy):
+                    return tensor.Spider(1, 2, Dim(2))
+                elif isinstance(gate, Match):
+                    return tensor.Spider(2, 1, Dim(2))
+                else:  # copies of higher arity not implemented in gates file
+                    return F(gate)
+                raise NotImplementedError
+            elif isinstance(gate, QuantumGate):
+                if len(gate.dom) == 1:
+                    return F(gate).conjugate(diagrammatic=False) @ F(gate)
+                elif len(gate.dom) == 2:
+                    d = Dim(2)
+                    below = tensor.Id(d) @ tensor.Swap(d, d) @ tensor.Id(d)
+                    middle = F(gate).conjugate(diagrammatic=False) @ F(gate)
+                    above = below
+                    return below >> middle >> above
+                raise NotImplementedError
+            elif isinstance(gate, Encode):
+                n = gate.n_bits
+                return Diagram.tensor(*n * [tensor.Spider(1, 2, Dim(2))])
+            elif isinstance(gate, Measure):
+                n = gate.n_qubits
+                return Diagram.tensor(*n * [tensor.Spider(2, 1, Dim(2))])
+            elif isinstance(gate, Discard):
+                n = gate.n_qubits
+                return Diagram.tensor(*n * [tensor.Spider(2, 0, Dim(2))])
+            else:
+                raise NotImplementedError
+        F = rigid.Functor({bit: Dim(2), qubit: Dim(2) @ Dim(2)},
+                          lambda f: gate_to_tbox(f),
+                          ob_factory=Dim,
+                          ar_factory=tensor.Diagram)
+        return F(self)
+
 
 class Id(rigid.Id, Circuit):
     """ Identity circuit. """
@@ -741,6 +795,7 @@ class Discard(RealConjugate, Box):
         super().__init__(
             "Discard({})".format(dom), dom, qubit ** 0, is_mixed=True)
         self.draw_as_discards = True
+        self.n_qubits = len(dom)
 
     def dagger(self):
         return MixedState(self.dom)
