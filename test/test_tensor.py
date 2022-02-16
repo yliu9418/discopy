@@ -237,12 +237,3 @@ def test_non_numpy_eval():
     with raises(Exception):
         Swap(Dim(2), Dim(2)).eval()
     Tensor.np = np
-
-
-def test_Tensor_to_mixed_tn():
-    from discopy.quantum import (Copy, Encode, CX, Rx, Rz, SWAP, Encode,
-                                 Measure, Discard)
-    c = Copy() >> Encode(2) >> CX >> Rx(0.3) @ Rz(0.3) \
-        >> SWAP >> Measure() @ Discard()
-    assert np.allclose(tn.contractors.auto(*c.to_mixed_tn()).tensor,
-                       c.eval(mixed=True).array)
