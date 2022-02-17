@@ -206,7 +206,7 @@ class Circuit(tensor.Diagram):
             circuit = circuit >> discards
         return circuit
 
-    def eval(self, *others, backend=None, mixed=False, **params):
+    def eval(self, *others, backend=None, mixed=False, contractor=None, **params):
         """
         Evaluate a circuit on a backend, or simulate it with numpy.
 
@@ -258,8 +258,17 @@ class Circuit(tensor.Diagram):
         >>> assert circuit.eval(backend, n_shots=2**10).round()\\
         ...     == Tensor(dom=Dim(1), cod=Dim(2), array=[0., 1.])
         """
+        from discopy.quantum import cqmap
+        if contractor is not None:
+            array = contractor(*self.to_tn(mixed=mixed)).tensor
+            if self.is_mixed or mixed:
+                f = cqmap.Functor()
+                return cqmap.CQMap(f(self.dom), f(self.cod), array)
+            f = tensor.Functor(lambda x: x[0].dim, {})
+            return Tensor(f(self.dom), f(self.cod), array)
+
         from discopy import cqmap
-        from discopy.quantum.gates import Bits, scalar, ClassicalGate
+        from discopy.quantum.gates import Bits, scalar
         if len(others) == 1 and not isinstance(others[0], Circuit):
             # This allows the syntax :code:`circuit.eval(backend)`
             return self.eval(backend=others[0], mixed=mixed, **params)
@@ -322,6 +331,7 @@ class Circuit(tensor.Diagram):
         >>> circuit.get_counts(backend, n_shots=2**10)
         {(0, 1): 0.5, (1, 0): 0.5}
         """
+        
         if len(others) == 1 and not isinstance(others[0], Circuit):
             # This allows the syntax :code:`circuit.get_counts(backend)`
             return self.get_counts(backend=others[0], **params)
